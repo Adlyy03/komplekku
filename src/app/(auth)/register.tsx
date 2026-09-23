@@ -5,13 +5,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useSupabase } from '@/lib/supabase-provider';
+import { findHouseByFamilyCode, joinFamilyByCode } from '@/services/family';
 
 /**
  * Register Screen — PRD §10.1 & desain.md §21
@@ -20,6 +22,8 @@ import { useSupabase } from '@/lib/supabase-provider';
 export default function RegisterScreen() {
   const { signUp } = useSupabase();
 
+  const [roleType, setRoleType] = useState<'head' | 'member'>('head');
+  const [familyCode, setFamilyCode] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,11 +57,29 @@ export default function RegisterScreen() {
       return;
     }
 
+    let cleanedCode = '';
+    if (roleType === 'member') {
+      cleanedCode = familyCode.trim().toUpperCase();
+      if (cleanedCode.length !== 7) {
+        setError('ID Keluarga harus terdiri dari 7 digit/karakter');
+        return;
+      }
+      setLoading(true);
+      const { data: house, error: houseErr } = await findHouseByFamilyCode(cleanedCode);
+      if (houseErr || !house) {
+        setLoading(false);
+        setError('ID Keluarga tidak valid atau tidak ditemukan. Periksa kembali kodenya.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const res = await signUp(trimmedEmail, password, trimmedName);
       if (res.error) {
         setError(res.error.message);
+      } else if (res.user && roleType === 'member' && cleanedCode) {
+        await joinFamilyByCode(res.user.id, cleanedCode);
       }
     } catch (err: any) {
       setError(err.message || 'Gagal mendaftar. Silakan coba lagi.');
@@ -86,6 +108,64 @@ export default function RegisterScreen() {
           {error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorBoxText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.roleSelectorWrap}>
+            <Text style={styles.roleLabel}>Daftar Sebagai:</Text>
+            <View style={styles.roleButtonsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.roleChoiceBtn,
+                  roleType === 'head' && styles.roleChoiceBtnActive,
+                ]}
+                onPress={() => setRoleType('head')}
+              >
+                <Text
+                  style={[
+                    styles.roleChoiceText,
+                    roleType === 'head' && styles.roleChoiceTextActive,
+                  ]}
+                >
+                  Kepala Keluarga
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleChoiceBtn,
+                  roleType === 'member' && styles.roleChoiceBtnActive,
+                ]}
+                onPress={() => setRoleType('member')}
+              >
+                <Text
+                  style={[
+                    styles.roleChoiceText,
+                    roleType === 'member' && styles.roleChoiceTextActive,
+                  ]}
+                >
+                  Anggota (Anak/Istri)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {roleType === 'member' && (
+            <View style={styles.familyCodeBox}>
+              <Input
+                label="ID Unik Keluarga (7 Karakter)"
+                placeholder="Contoh: K7A93F2"
+                autoCapitalize="characters"
+                maxLength={7}
+                value={familyCode}
+                onChangeText={(text) => {
+                  setFamilyCode(text.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                  if (error) setError(null);
+                }}
+              />
+              <Text style={styles.familyCodeHint}>
+                Masukkan 7 digit ID Keluarga dari Kepala Keluarga Anda (lihat di halaman Profil Kepala Keluarga).
+              </Text>
             </View>
           )}
 
@@ -206,5 +286,57 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: Spacing[2],
+  },
+  roleSelectorWrap: {
+    marginBottom: Spacing[1],
+  },
+  roleLabel: {
+    ...Typography.bodyS,
+    fontWeight: '600',
+    color: Colors.stone[700],
+    marginBottom: Spacing[2],
+  },
+  roleButtonsRow: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+  },
+  roleChoiceBtn: {
+    flex: 1,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
+    backgroundColor: Colors.stone[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleChoiceBtnActive: {
+    borderColor: Colors.primary[600],
+    backgroundColor: Colors.primary[50],
+  },
+  roleChoiceText: {
+    ...Typography.bodyS,
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.stone[600],
+  },
+  roleChoiceTextActive: {
+    fontWeight: '700',
+    color: Colors.primary[800],
+  },
+  familyCodeBox: {
+    backgroundColor: Colors.primary[50],
+    padding: Spacing[3],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+    gap: Spacing[1],
+  },
+  familyCodeHint: {
+    ...Typography.bodyS,
+    fontSize: 12,
+    color: Colors.primary[800],
+    marginTop: -Spacing[2],
   },
 });

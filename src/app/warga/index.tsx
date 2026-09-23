@@ -298,6 +298,12 @@ export default function WargaScreen() {
                     {m.rt ? ` • RT ${m.rt.code}` : ''}
                   </Text>
 
+                  {(m.house?.family_code || m.family_code) && (
+                    <Text style={styles.memberFamilyCodeText}>
+                      ID Keluarga: #{m.house?.family_code || m.family_code}
+                    </Text>
+                  )}
+
                   {m.phone && <Text style={styles.memberPhoneText}>📞 {m.phone}</Text>}
                   <Text style={styles.cardTapHint}>Sentuh untuk melihat biodata & keluarga →</Text>
                 </View>
@@ -327,6 +333,13 @@ export default function WargaScreen() {
                     <CheckCircle size={12} color="#15803D" weight="bold" />
                     <Text style={styles.verifiedText}>Warga Terverifikasi</Text>
                   </View>
+                  {household?.house?.family_code && (
+                    <View style={styles.familyCodeBadgeSmall}>
+                      <Text style={styles.familyCodeBadgeSmallText}>
+                        ID: {household.house.family_code}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -534,6 +547,14 @@ export default function WargaScreen() {
                     <View style={styles.modalHeadBadge}>
                       <Crown size={12} color="#B45309" weight="fill" />
                       <Text style={styles.modalHeadBadgeText}>Kepala Keluarga</Text>
+                    </View>
+                  )}
+
+                  {(selectedMember.house?.family_code || selectedMember.family_code) && (
+                    <View style={styles.modalFamilyCodeBadge}>
+                      <Text style={styles.modalFamilyCodeBadgeText}>
+                        ID KELUARGA: #{selectedMember.house?.family_code || selectedMember.family_code}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -1367,5 +1388,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.primary[700],
     marginTop: 2,
+  },
+  memberFamilyCodeText: {
+    ...Typography.bodyS,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary[700],
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  familyCodeBadgeSmall: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  familyCodeBadgeSmallText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
+  },
+  modalFamilyCodeBadge: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  modalFamilyCodeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
   },
 });

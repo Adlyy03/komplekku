@@ -83,6 +83,7 @@ export interface Profile {
   emergency_contact_phone?: string | null;
   emergency_contact_relation?: string | null;
   kk_number?: string | null;
+  family_code?: string | null;
   created_at: string;
   updated_at: string;
   // Backward compatibility fields:
@@ -148,6 +149,7 @@ export interface House {
   house_number: string;
   address_label: string | null;
   status: HouseStatus;
+  family_code?: string | null;
   created_at: string;
   updated_at: string;
   rw?: RwUnit;

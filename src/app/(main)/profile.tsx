@@ -5,8 +5,10 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -26,6 +28,8 @@ import {
   PhoneCall,
   House,
   Crown,
+  ShareNetwork,
+  Copy,
 } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { Button } from '@/components/ui/Button';
@@ -39,6 +43,7 @@ import {
   createFamilyMember,
   updateFamilyMember,
   deleteFamilyMember,
+  joinFamilyByCode,
   RELATIONSHIP_LABELS,
 } from '@/services/family';
 import type { FamilyMember, FamilyRelationship } from '@/types/database';
@@ -96,6 +101,58 @@ export default function ProfileScreen() {
       isMounted = false;
     };
   }, [houseId]);
+
+  // 7-digit Family Code state & helpers
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  const familyCode = household?.house?.family_code || profile?.family_code;
+
+  const handleShareFamilyCode = async () => {
+    if (!familyCode) return;
+    try {
+      await Share.share({
+        message: `Halo! Ini ID Unik Keluarga kita di Komplekku: ${familyCode}. Masukkan ID ini saat mendaftar akun di aplikasi Komplekku agar akun kamu otomatis terhubung ke rumah kita.`,
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyFamilyCode = () => {
+    if (!familyCode) return;
+    Alert.alert(
+      'ID Unik Keluarga (7 Digit)',
+      `Kode ID Keluarga Anda: ${familyCode}\n\nBagikan kode 7 digit ini kepada istri atau anak saat mendaftar akun Komplekku agar otomatis terhubung ke rumah ini.`
+    );
+  };
+
+  const handleJoinFamily = async () => {
+    if (!user?.id) return;
+    const clean = joinCodeInput.trim().toUpperCase();
+    if (clean.length !== 7) {
+      Alert.alert('Format Salah', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const { data, error } = await joinFamilyByCode(user.id, clean);
+      if (error || !data) {
+        Alert.alert('Gagal Bergabung', error?.message || 'ID Keluarga tidak ditemukan.');
+      } else {
+        Alert.alert(
+          'Berhasil Terhubung!',
+          `Anda telah terhubung ke Rumah ${data.block ? `Blok ${data.block} ` : ''}No. ${data.house_number}.`
+        );
+        setJoinCodeInput('');
+        await refreshComplex();
+        await refreshProfile();
+      }
+    } finally {
+      setJoining(false);
+    }
+  };
 
   // Edit My Profile Modal State
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -447,6 +504,12 @@ export default function ProfileScreen() {
                 <Text style={styles.memberBadgeText}>Anggota Keluarga</Text>
               </View>
             )}
+
+            {familyCode ? (
+              <View style={styles.familyCodeBadge}>
+                <Text style={styles.familyCodeBadgeText}>ID: {familyCode}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.meta}>Warga sejak {memberSince}</Text>
@@ -558,6 +621,66 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ID Unik Keluarga Card */}
+        {familyCode ? (
+          <View style={styles.familyCodeCard}>
+            <View style={styles.familyCodeCardHeader}>
+              <View style={styles.familyCodeIconWrap}>
+                <Users size={18} color={Colors.primary[700]} weight="bold" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.familyCodeCardTitle}>ID UNIK KELUARGA (7 DIGIT)</Text>
+                <Text style={styles.familyCodeValueText}>{familyCode}</Text>
+              </View>
+              <View style={styles.familyCodeActionButtons}>
+                <TouchableOpacity style={styles.familyCodeCopyBtn} onPress={handleCopyFamilyCode}>
+                  <Copy size={13} color={Colors.stone[700]} weight="bold" />
+                  <Text style={styles.familyCodeCopyBtnText}>Salin</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.familyCodeShareBtn} onPress={handleShareFamilyCode}>
+                  <ShareNetwork size={13} color="#FFFFFF" weight="bold" />
+                  <Text style={styles.familyCodeShareBtnText}>Bagikan</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={styles.familyCodeCardNote}>
+              {isHeadOfFamily
+                ? 'Bagikan 7 digit kode ini ke istri atau anak Anda saat mereka mendaftar akun baru agar langsung terhubung ke rumah ini.'
+                : 'Akun Anda resmi terdaftar sebagai anggota dari unit keluarga ini.'}
+            </Text>
+          </View>
+        ) : !household?.house ? (
+          <View style={styles.joinFamilyCard}>
+            <View style={styles.joinFamilyHeader}>
+              <Users size={18} color={Colors.primary[700]} weight="bold" />
+              <Text style={styles.joinFamilyTitle}>Gabung dengan ID Keluarga</Text>
+            </View>
+            <Text style={styles.joinFamilyDesc}>
+              Masukkan 7 digit ID Keluarga dari Kepala Keluarga Anda untuk langsung terhubung ke rumah.
+            </Text>
+            <View style={styles.joinFamilyInputRow}>
+              <TextInput
+                style={styles.joinFamilyInput}
+                placeholder="Contoh: K7A93F2"
+                placeholderTextColor={Colors.stone[400]}
+                autoCapitalize="characters"
+                maxLength={7}
+                value={joinCodeInput}
+                onChangeText={(t) => setJoinCodeInput(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              />
+              <TouchableOpacity
+                style={[styles.joinFamilyBtn, joining && { opacity: 0.7 }]}
+                onPress={handleJoinFamily}
+                disabled={joining}
+              >
+                <Text style={styles.joinFamilyBtnText}>
+                  {joining ? 'Menghubungkan...' : 'Gabung'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {/* 3. Data Hunian */}
         <View style={styles.sectionHeaderRow}>
           <House size={18} color={Colors.primary[700]} weight="bold" />
@@ -577,6 +700,20 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>Wilayah</Text>
               <Text style={styles.infoValue}>
                 RT {household?.rt?.code || '01'} / RW {household?.rw?.code || '02'}
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.gridRow, { marginTop: Spacing[3], paddingTop: Spacing[3], borderTopWidth: 1, borderTopColor: Colors.stone[100] }]}>
+            <View style={styles.gridCol}>
+              <Text style={styles.infoLabel}>ID Keluarga</Text>
+              <Text style={[styles.infoValue, { fontWeight: '700', color: Colors.primary[700] }]}>
+                {familyCode ? `#${familyCode}` : 'Belum ada'}
+              </Text>
+            </View>
+            <View style={styles.gridCol}>
+              <Text style={styles.infoLabel}>Status di Rumah</Text>
+              <Text style={styles.infoValue}>
+                {isHeadOfFamily ? 'Kepala Keluarga' : 'Anggota Keluarga'}
               </Text>
             </View>
           </View>
@@ -1576,6 +1713,149 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: Spacing[4],
+  },
+  familyCodeBadge: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  familyCodeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
+  },
+  familyCodeCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: Radius.xl,
+    padding: Spacing[4],
+    marginBottom: Spacing[4],
+    gap: 10,
+  },
+  familyCodeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+  },
+  familyCodeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.lg,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  familyCodeCardTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803D',
+    letterSpacing: 0.8,
+  },
+  familyCodeValueText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#166534',
+    letterSpacing: 2,
+  },
+  familyCodeActionButtons: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  familyCodeCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Colors.stone[300],
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+  },
+  familyCodeCopyBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.stone[700],
+  },
+  familyCodeShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary[700],
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+  },
+  familyCodeShareBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  familyCodeCardNote: {
+    fontSize: 12,
+    color: '#166534',
+    lineHeight: 16,
+  },
+  joinFamilyCard: {
+    backgroundColor: Colors.stone[0],
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
+    borderRadius: Radius.xl,
+    padding: Spacing[4],
+    marginBottom: Spacing[4],
+    gap: Spacing[2],
+  },
+  joinFamilyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+  },
+  joinFamilyTitle: {
+    ...Typography.h3,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.stone[800],
+  },
+  joinFamilyDesc: {
+    ...Typography.bodyS,
+    fontSize: 12,
+    color: Colors.stone[600],
+  },
+  joinFamilyInputRow: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    marginTop: Spacing[1],
+  },
+  joinFamilyInput: {
+    flex: 1,
+    backgroundColor: Colors.stone[50],
+    borderWidth: 1,
+    borderColor: Colors.stone[300],
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.stone[900],
+    letterSpacing: 1.5,
+  },
+  joinFamilyBtn: {
+    backgroundColor: Colors.primary[700],
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing[4],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  joinFamilyBtnText: {
+    ...Typography.label,
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
 

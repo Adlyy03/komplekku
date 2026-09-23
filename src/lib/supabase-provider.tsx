@@ -14,7 +14,7 @@ interface AuthState {
 
 interface SupabaseContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ user?: any; error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Omit<Profile, 'id' | 'created_at'>>) => Promise<{ error: Error | null }>;
@@ -99,7 +99,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     if (res.user) {
       await fetchProfile(res.user.id);
     }
-    return { error: res.error };
+    return { user: res.user, error: res.error };
   };
 
   const signOut = async () => {

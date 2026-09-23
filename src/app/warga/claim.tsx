@@ -18,18 +18,22 @@ import {
   Clock,
   XCircle,
   UserCheck,
+  Users,
 } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { getHouses } from '@/services/residents';
 import { submitHouseClaim, getMyClaims, type HouseClaimWithDetails } from '@/services/claims';
+import { joinFamilyByCode } from '@/services/family';
 import type { House, HouseClaimOccupancy } from '@/types/database';
 
 export default function ClaimHouseScreen() {
   const { user } = useAuth();
   const { household } = useComplex();
 
+  const [familyCodeInput, setFamilyCodeInput] = useState('');
+  const [joiningByCode, setJoiningByCode] = useState(false);
   const [houses, setHouses] = useState<House[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState<string>('');
   const [occupancyStatus, setOccupancyStatus] = useState<HouseClaimOccupancy>('owner');
@@ -91,6 +95,31 @@ export default function ClaimHouseScreen() {
     }
   };
 
+  const handleJoinByCode = async () => {
+    if (!user?.id) return;
+    const clean = familyCodeInput.trim().toUpperCase();
+    if (clean.length !== 7) {
+      Alert.alert('Validasi Gagal', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
+      return;
+    }
+
+    setJoiningByCode(true);
+    try {
+      const { data, error } = await joinFamilyByCode(user.id, clean);
+      if (error || !data) {
+        Alert.alert('Gagal Terhubung', error?.message || 'ID Keluarga tidak ditemukan.');
+      } else {
+        Alert.alert(
+          'Berhasil Terhubung!',
+          `Anda berhasil bergabung ke rumah ${data.block ? `Blok ${data.block} ` : ''}No. ${data.house_number}.`,
+          [{ text: 'OK', onPress: () => router.replace('/(main)/profile' as any) }]
+        );
+      }
+    } finally {
+      setJoiningByCode(false);
+    }
+  };
+
   const pendingClaim = claims.find((c) => c.status === 'pending');
 
   return (
@@ -144,6 +173,43 @@ export default function ClaimHouseScreen() {
               </View>
             </View>
           )}
+
+          {/* Quick Join via Family Code */}
+          <View style={styles.codeCard}>
+            <View style={styles.codeHeader}>
+              <Users size={20} color={Colors.primary[700]} weight="bold" />
+              <Text style={styles.codeTitle}>Punya ID Keluarga? Gabung Langsung</Text>
+            </View>
+            <Text style={styles.codeDesc}>
+              Khusus anggota keluarga (anak/istri). Masukkan 7 digit ID Keluarga dari Kepala Keluarga Anda untuk langsung terhubung tanpa menunggu verifikasi.
+            </Text>
+            <View style={styles.codeInputRow}>
+              <TextInput
+                style={styles.codeInput}
+                placeholder="Contoh: K7A93F2"
+                placeholderTextColor={Colors.stone[400]}
+                autoCapitalize="characters"
+                maxLength={7}
+                value={familyCodeInput}
+                onChangeText={(t) => setFamilyCodeInput(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              />
+              <TouchableOpacity
+                style={[styles.codeBtn, joiningByCode && { opacity: 0.7 }]}
+                onPress={handleJoinByCode}
+                disabled={joiningByCode}
+              >
+                <Text style={styles.codeBtnText}>
+                  {joiningByCode ? '...' : 'Gabung'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ATAU KLAIM RUMAH SEBAGAI KEPALA KELUARGA</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           {/* Claim Submission Form */}
           <View style={styles.card}>
@@ -564,5 +630,78 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontStyle: 'italic',
     marginTop: 2,
+  },
+  codeCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
+    gap: Spacing[2],
+  },
+  codeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+  },
+  codeTitle: {
+    ...Typography.h3,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  codeDesc: {
+    ...Typography.bodyS,
+    fontSize: 12,
+    color: '#15803D',
+    lineHeight: 16,
+  },
+  codeInputRow: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    marginTop: Spacing[1],
+  },
+  codeInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#14532D',
+    letterSpacing: 1.5,
+  },
+  codeBtn: {
+    backgroundColor: Colors.primary[700],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[4],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  codeBtnText: {
+    ...Typography.label,
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    marginVertical: Spacing[2],
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.stone[200],
+  },
+  dividerText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.stone[400],
+    letterSpacing: 0.5,
   },
 });

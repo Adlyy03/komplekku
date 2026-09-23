@@ -162,3 +162,121 @@ export async function deleteFamilyMember(
     return { success: false, error: new Error(err.message || 'Gagal menghapus anggota keluarga') };
   }
 }
+
+/**
+ * Unambiguous 7-character family code generator
+ */
+export function generateFamilyCode(): string {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < 7; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * Find house by 7-digit family code
+ */
+export async function findHouseByFamilyCode(code: string): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const cleaned = code.trim().toUpperCase();
+    if (cleaned.length !== 7) {
+      return { data: null, error: new Error('ID Keluarga harus terdiri dari 7 karakter.') };
+    }
+
+    const { data, error } = await supabase
+      .from('houses')
+      .select('*, rt:rt_units(*), rw:rw_units(*)')
+      .eq('family_code', cleaned)
+      .maybeSingle();
+
+    if (error) return { data: null, error: new Error(error.message) };
+    if (!data) return { data: null, error: new Error('ID Keluarga tidak ditemukan.') };
+
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: new Error(err.message || 'Gagal mencari ID Keluarga') };
+  }
+}
+
+/**
+ * Join a family / household using 7-digit unique family code
+ */
+export async function joinFamilyByCode(
+  userId: string,
+  familyCode: string
+): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const cleaned = familyCode.trim().toUpperCase();
+    if (cleaned.length !== 7) {
+      return { data: null, error: new Error('ID Keluarga harus 7 karakter.') };
+    }
+
+    // Try via Postgres RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('join_family_by_code', {
+      p_user_id: userId,
+      p_family_code: cleaned,
+    });
+
+    if (!rpcError && rpcData) {
+      await logAuditAction({
+        actorId: userId,
+        action: 'join_family_by_code',
+        entityType: 'house',
+        entityId: (rpcData as any).house_id || cleaned,
+        metadata: { family_code: cleaned },
+      });
+      return { data: rpcData, error: null };
+    }
+
+    // Fallback if RPC function not yet run in remote db
+    const { data: house, error: findError } = await findHouseByFamilyCode(cleaned);
+    if (findError || !house) {
+      return { data: null, error: findError || new Error('ID Keluarga tidak ditemukan.') };
+    }
+
+    // Update profile
+    await supabase.from('profiles').update({ family_code: cleaned }).eq('id', userId);
+
+    // Upsert household member
+    await supabase.from('household_members').upsert(
+      {
+        house_id: house.id,
+        user_id: userId,
+        relationship: 'family',
+        is_primary: false,
+        status: 'active',
+        joined_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'house_id,user_id' }
+    );
+
+    // Set house to occupied if vacant
+    if (house.status === 'vacant') {
+      await supabase.from('houses').update({ status: 'occupied' }).eq('id', house.id);
+    }
+
+    await logAuditAction({
+      actorId: userId,
+      action: 'join_family_by_code_fallback',
+      entityType: 'house',
+      entityId: house.id,
+      metadata: { family_code: cleaned },
+    });
+
+    return {
+      data: {
+        success: true,
+        house_id: house.id,
+        family_code: cleaned,
+        house_number: house.house_number,
+        block: house.block,
+      },
+      error: null,
+    };
+  } catch (err: any) {
+    return { data: null, error: new Error(err.message || 'Gagal bergabung ke keluarga') };
+  }
+}
