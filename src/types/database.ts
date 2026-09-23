@@ -71,12 +71,51 @@ export interface Profile {
   avatar_path: string | null;
   resident_status: ResidentStatus;
   verification_status: VerificationStatus;
+  nik?: string | null;
+  gender?: 'male' | 'female' | null;
+  birth_place?: string | null;
+  birth_date?: string | null;
+  religion?: string | null;
+  marital_status?: 'single' | 'married' | 'divorced' | 'widowed' | null;
+  occupation?: string | null;
+  blood_type?: 'A' | 'B' | 'AB' | 'O' | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relation?: string | null;
+  kk_number?: string | null;
   created_at: string;
   updated_at: string;
   // Backward compatibility fields:
   phone_number?: string | null;
   avatar_url?: string | null;
   bio?: string | null;
+}
+
+export type FamilyRelationship =
+  | 'head'
+  | 'spouse'
+  | 'child'
+  | 'parent'
+  | 'sibling'
+  | 'other';
+
+export interface FamilyMember {
+  id: string;
+  house_id: string;
+  head_user_id: string;
+  user_id: string | null;
+  full_name: string;
+  nik: string | null;
+  relationship: FamilyRelationship;
+  gender: 'male' | 'female' | null;
+  birth_place: string | null;
+  birth_date: string | null;
+  religion: string | null;
+  occupation: string | null;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile | null;
 }
 
 export interface RwUnit {

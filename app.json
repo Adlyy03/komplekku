@@ -43,6 +43,13 @@
           "photosPermission": "Izinkan Komplekku mengakses galeri foto untuk mengunggah bukti pembayaran iuran dan foto produk.",
           "cameraPermission": "Izinkan Komplekku mengakses kamera untuk mengambil foto bukti pembayaran iuran atau dokumen domisili."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#28624F"
+        }
       ]
     ],
     "experiments": {

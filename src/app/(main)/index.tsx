@@ -23,6 +23,9 @@ import {
   Buildings,
   Gear,
   ChatCircle,
+  QrCode,
+  Warning,
+  Wallet,
 } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { CommunityHeader } from '@/components/ui/CommunityHeader';
@@ -36,6 +39,7 @@ import { getMyHouseDues, formatRupiah, type DueAssignmentWithDetails, getDueAssi
 import { getProducts, type ProductWithDetails } from '@/services/products';
 import { getAdminOverview, type AdminOverviewStats, type RoleScopeFilter } from '@/services/admin';
 import { getComplaints, type ComplaintWithDetails } from '@/services/complaints';
+import { getActiveEmergencies, type EmergencyWithDetails } from '@/services/security';
 import { PaymentVerifyModal } from '@/components/PaymentVerifyModal';
 import { Image } from 'expo-image';
 
@@ -64,6 +68,7 @@ export default function DashboardScreen() {
   const [adminStats, setAdminStats] = useState<AdminOverviewStats | null>(null);
   const [pendingVerifications, setPendingVerifications] = useState<DueAssignmentWithDetails[]>([]);
   const [activeComplaints, setActiveComplaints] = useState<ComplaintWithDetails[]>([]);
+  const [activeEmergencies, setActiveEmergencies] = useState<EmergencyWithDetails[]>([]);
 
   // Payment Verification Modal State
   const [selectedVerifyAssignment, setSelectedVerifyAssignment] = useState<DueAssignmentWithDetails | null>(null);
@@ -74,6 +79,7 @@ export default function DashboardScreen() {
 
     try {
       getUnreadMessagesCount(user.id).then(setUnreadChat).catch(() => {});
+      getActiveEmergencies().then((r) => setActiveEmergencies(r.data)).catch(() => {});
 
       if (activeRole === 'warga') {
         // 1. Warga resident data
@@ -204,6 +210,26 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ACTIVE EMERGENCY BANNER (PHASE 7 SOS) */}
+        {activeEmergencies.length > 0 && (
+          <TouchableOpacity
+            style={styles.globalEmergencyBanner}
+            onPress={() => router.push('/security/sos' as any)}
+            activeOpacity={0.8}
+          >
+            <Warning size={22} color="#FFFFFF" weight="fill" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.globalEmergencyTitle}>
+                🚨 SINYAL DARURAT AKTIF ({activeEmergencies.length})
+              </Text>
+              <Text style={styles.globalEmergencySub}>
+                Blok {activeEmergencies[0]?.house?.block || '-'} No. {activeEmergencies[0]?.house?.house_number || '-'} membutuhkan bantuan segera!
+              </Text>
+            </View>
+            <CaretRight size={18} color="#FFFFFF" weight="bold" />
+          </TouchableOpacity>
+        )}
 
         {/* ROLE-SPECIFIC DASHBOARD VIEW (PRD v2 §4, §6 & MVP_FINALIZATION_PHASES) */}
         {activeRole === 'rt' ? (
@@ -727,6 +753,45 @@ export default function DashboardScreen() {
                     <Text style={styles.moduleSubtitle}>Layanan Lingkungan</Text>
                   </TouchableOpacity>
                 )}
+
+                {/* SOS Panic Button */}
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  onPress={() => router.push('/security/sos' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: '#FEE2E2' }]}>
+                    <Warning size={24} color="#DC2626" weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Darurat SOS</Text>
+                  <Text style={styles.moduleSubtitle}>Tombol Panik</Text>
+                </TouchableOpacity>
+
+                {/* Digital Visitor Pass */}
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  onPress={() => router.push('/security/visitor' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: '#EFF6FF' }]}>
+                    <QrCode size={24} color="#2563EB" weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Buku Tamu</Text>
+                  <Text style={styles.moduleSubtitle}>Izin Masuk</Text>
+                </TouchableOpacity>
+
+                {/* Kas Komplek */}
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  onPress={() => router.push('/finance' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: '#F0FDF4' }]}>
+                    <Wallet size={24} color="#16A34A" weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Kas Komplek</Text>
+                  <Text style={styles.moduleSubtitle}>Transparansi</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1398,5 +1463,34 @@ const styles = StyleSheet.create({
     color: Colors.stone[500],
     fontSize: 11,
     marginTop: 4,
+  },
+  globalEmergencyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: '#DC2626',
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    marginHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    borderRadius: Radius.md,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  globalEmergencyTitle: {
+    ...Typography.bodyS,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  globalEmergencySub: {
+    ...Typography.bodyS,
+    color: '#FEE2E2',
+    fontSize: 11,
+    marginTop: 2,
   },
 });

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type {
+  FamilyMember,
   House,
   HouseholdMember,
   Profile,
@@ -13,6 +14,7 @@ export interface MyHouseholdInfo {
   rt: RtUnit | null;
   rw: RwUnit | null;
   familyMembers: (HouseholdMember & { profile?: Profile })[];
+  registeredFamilyMembers: FamilyMember[];
 }
 
 /**
@@ -41,6 +43,7 @@ export async function getMyHousehold(
           rt: null,
           rw: null,
           familyMembers: [],
+          registeredFamilyMembers: [],
         },
         error: null,
       };
@@ -50,12 +53,19 @@ export async function getMyHousehold(
     const rt = house?.rt || null;
     const rw = house?.rw || null;
 
-    // Fetch other members in this house
+    // Fetch account-linked members in this house
     const { data: familyData } = await supabase
       .from('household_members')
       .select('*, profile:profiles(*)')
       .eq('house_id', house.id)
       .eq('status', 'active');
+
+    // Fetch registered family unit members (Kartu Keluarga CRUD)
+    const { data: regFamilyData } = await supabase
+      .from('family_members')
+      .select('*, profile:profiles(*)')
+      .eq('house_id', house.id)
+      .order('created_at', { ascending: true });
 
     return {
       data: {
@@ -64,6 +74,7 @@ export async function getMyHousehold(
         rt,
         rw,
         familyMembers: (familyData || []) as any,
+        registeredFamilyMembers: (regFamilyData || []) as FamilyMember[],
       },
       error: null,
     };

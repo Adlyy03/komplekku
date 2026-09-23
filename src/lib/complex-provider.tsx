@@ -4,6 +4,7 @@ import { getComplexSettings } from '@/services/complex';
 import { getMyHousehold, type MyHouseholdInfo } from '@/services/residents';
 import { getHighestRole, getUserRoles } from '@/services/roles';
 import { useSupabase } from './supabase-provider';
+import { CACHE_KEYS, getCachedData, setCachedData } from './offline-cache';
 
 interface ComplexContextType {
   complexSettings: ComplexSettings;
@@ -14,6 +15,7 @@ interface ComplexContextType {
   isRw: boolean;
   isRt: boolean;
   isWarga: boolean;
+  isHeadOfFamily: boolean;
   loading: boolean;
   setActiveRole: (role: UserRole) => void;
   refreshComplex: () => Promise<void>;
@@ -48,12 +50,28 @@ export function ComplexProvider({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<UserRole>('warga');
   const [loading, setLoading] = useState(true);
 
+  // Hydrate from offline cache first for instant mobile startup
+  useEffect(() => {
+    async function hydrateCache() {
+      const [cachedSettings, cachedHousehold, cachedRole] = await Promise.all([
+        getCachedData<ComplexSettings>(CACHE_KEYS.COMPLEX_SETTINGS),
+        getCachedData<MyHouseholdInfo>(CACHE_KEYS.HOUSEHOLD),
+        getCachedData<UserRole>(CACHE_KEYS.ACTIVE_ROLE),
+      ]);
+      if (cachedSettings) setComplexSettings(cachedSettings);
+      if (cachedHousehold) setHousehold(cachedHousehold);
+      if (cachedRole) setActiveRole(cachedRole);
+    }
+    void hydrateCache();
+  }, []);
+
   const refreshComplex = useCallback(async () => {
     try {
       // 1. Fetch complex settings
       const { data: settings } = await getComplexSettings();
       if (settings) {
         setComplexSettings(settings);
+        void setCachedData(CACHE_KEYS.COMPLEX_SETTINGS, settings);
       }
 
       // 2. If user logged in, fetch household & roles
@@ -65,11 +83,13 @@ export function ComplexProvider({ children }: { children: React.ReactNode }) {
 
         if (householdRes.data) {
           setHousehold(householdRes.data);
+          void setCachedData(CACHE_KEYS.HOUSEHOLD, householdRes.data);
         }
         if (rolesRes.data) {
           setRoles(rolesRes.data);
           const highest = getHighestRole(rolesRes.data);
           setActiveRole(highest);
+          void setCachedData(CACHE_KEYS.ACTIVE_ROLE, highest);
         }
       } else {
         setHousehold(null);
@@ -77,7 +97,7 @@ export function ComplexProvider({ children }: { children: React.ReactNode }) {
         setActiveRole('warga');
       }
     } catch {
-      // Fallback cleanly
+      // Fallback cleanly to cached data
     } finally {
       setLoading(false);
     }
@@ -93,6 +113,12 @@ export function ComplexProvider({ children }: { children: React.ReactNode }) {
   const isRw = activeRole === 'rw' || roles.some((r) => r.role === 'rw');
   const isRt = activeRole === 'rt' || roles.some((r) => r.role === 'rt');
   const isWarga = true;
+  const isHeadOfFamily = Boolean(
+    household?.member?.is_primary ||
+      household?.member?.relationship === 'primary' ||
+      household?.member?.relationship === 'head' ||
+      (household?.house && !household?.member) // Default sole claimed occupant can act as head
+  );
 
   const activeCommunity = {
     id: 'single-complex',
@@ -111,6 +137,7 @@ export function ComplexProvider({ children }: { children: React.ReactNode }) {
         isRw,
         isRt,
         isWarga,
+        isHeadOfFamily,
         loading,
         setActiveRole,
         refreshComplex,

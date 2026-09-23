@@ -8,6 +8,8 @@ import {
   TextInput,
   RefreshControl,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,7 +22,10 @@ import {
   Users,
   MagnifyingGlass,
   Check,
-  ShieldCheck,
+  Crown,
+  IdentificationCard,
+  PhoneCall,
+  X,
 } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useComplex } from '@/lib/complex-provider';
@@ -31,7 +36,10 @@ import {
   type CommunityMemberWithProfile,
   type RoleScopeFilter,
 } from '@/services/admin';
+import { getHouseFamilyMembers, RELATIONSHIP_LABELS } from '@/services/family';
+import type { FamilyMember } from '@/types/database';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { Button } from '@/components/ui/Button';
 
 /**
  * Module Warga — PRD v2 §10, §11 & UPGRADE_ROADMAP_V3 Phase 3
@@ -43,6 +51,29 @@ export default function WargaScreen() {
 
   const isManagement = isDeveloper || isRw || isRt;
   const [activeTab, setActiveTab] = useState<'my_house' | 'directory'>('my_house');
+
+  // Detail Modal for Managers
+  const [selectedMember, setSelectedMember] = useState<CommunityMemberWithProfile | null>(null);
+  const [selectedMemberFamily, setSelectedMemberFamily] = useState<FamilyMember[]>([]);
+  const [loadingSelectedFamily, setLoadingSelectedFamily] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+  const openMemberDetailModal = async (member: CommunityMemberWithProfile) => {
+    setSelectedMember(member);
+    setDetailModalVisible(true);
+    setSelectedMemberFamily([]);
+    if (member.house?.id) {
+      setLoadingSelectedFamily(true);
+      try {
+        const { data } = await getHouseFamilyMembers(member.house.id);
+        setSelectedMemberFamily(data);
+      } catch {
+        // Fallback
+      } finally {
+        setLoadingSelectedFamily(false);
+      }
+    }
+  };
 
   // Directory states
   const [members, setMembers] = useState<CommunityMemberWithProfile[]>([]);
@@ -74,10 +105,18 @@ export default function WargaScreen() {
   }, [isManagement, roleScope]);
 
   useEffect(() => {
-    if (activeTab === 'directory') {
-      void loadMembers();
+    if (activeTab === 'directory' && isManagement) {
+      let isMounted = true;
+      getCommunityMembers(roleScope)
+        .then(({ data }) => {
+          if (isMounted) setMembers(data);
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
     }
-  }, [activeTab, loadMembers]);
+  }, [activeTab, isManagement, roleScope]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -165,7 +204,10 @@ export default function WargaScreen() {
 
             <TouchableOpacity
               style={[styles.switchButton, activeTab === 'directory' && styles.switchButtonActive]}
-              onPress={() => setActiveTab('directory')}
+              onPress={() => {
+                setActiveTab('directory');
+                void loadMembers();
+              }}
             >
               <Text
                 style={[
@@ -215,7 +257,12 @@ export default function WargaScreen() {
             </View>
           ) : (
             filteredMembers.map((m) => (
-              <View key={m.id} style={styles.memberCardDirectory}>
+              <TouchableOpacity
+                key={m.id}
+                style={styles.memberCardDirectory}
+                onPress={() => void openMemberDetailModal(m)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.memberAvatar}>
                   <Text style={styles.memberAvatarText}>
                     {m.full_name ? m.full_name[0]?.toUpperCase() : 'W'}
@@ -233,7 +280,10 @@ export default function WargaScreen() {
                     ) : (
                       <TouchableOpacity
                         style={styles.badgePendingTouch}
-                        onPress={() => handleVerifyMember(m)}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleVerifyMember(m);
+                        }}
                       >
                         <Check size={12} color="#FFFFFF" weight="bold" />
                         <Text style={styles.badgePendingText}>Verifikasi</Text>
@@ -249,8 +299,9 @@ export default function WargaScreen() {
                   </Text>
 
                   {m.phone && <Text style={styles.memberPhoneText}>📞 {m.phone}</Text>}
+                  <Text style={styles.cardTapHint}>Sentuh untuk melihat biodata & keluarga →</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </ScrollView>
@@ -285,8 +336,14 @@ export default function WargaScreen() {
               <View style={styles.pendingTextWrap}>
                 <Text style={styles.pendingTitle}>Belum Dihubungkan ke Rumah</Text>
                 <Text style={styles.pendingDesc}>
-                  Silakan hubungi ketua RT atau pengurus perumahan untuk mengonfirmasi nomor rumah Anda.
+                  Ajukan klaim nomor rumah Anda agar terdaftar resmi dan dapat membayar iuran.
                 </Text>
+                <TouchableOpacity
+                  style={styles.claimNowBtn}
+                  onPress={() => router.push('/warga/claim' as any)}
+                >
+                  <Text style={styles.claimNowBtnText}>Klaim Rumah Sekarang</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -334,6 +391,46 @@ export default function WargaScreen() {
                 </View>
               </View>
             )}
+
+            {/* Registered Family Members via Kartu Keluarga */}
+            {household?.registeredFamilyMembers && household.registeredFamilyMembers.length > 0 && (
+              <View style={{ marginTop: Spacing[3] }}>
+                <Text style={styles.subHeading}>
+                  DATA KARTU KELUARGA ({household.registeredFamilyMembers.length})
+                </Text>
+                {household.registeredFamilyMembers.map((fm) => (
+                  <View key={fm.id} style={styles.memberCard}>
+                    <View style={styles.avatarCircle}>
+                      <User size={20} color={Colors.stone[600]} />
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <View style={styles.memberHeader}>
+                        <Text style={styles.memberName}>{fm.full_name}</Text>
+                        <View style={styles.relationTag}>
+                          <Text style={styles.relationTagText}>
+                            {RELATIONSHIP_LABELS[fm.relationship] || fm.relationship}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.memberRel}>
+                        {fm.gender === 'male' ? 'Laki-laki' : fm.gender === 'female' ? 'Perempuan' : ''}
+                        {fm.nik ? ` • NIK: ${fm.nik}` : ''}
+                        {fm.occupation ? ` • ${fm.occupation}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.manageFamilyBtn}
+              onPress={() => router.push('/(main)/profile' as any)}
+            >
+              <Text style={styles.manageFamilyBtnText}>
+                Kelola Susunan Anggota Keluarga di Menu Profil →
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* RT & RW Structure Info (PRD v2 §11) */}
@@ -383,6 +480,270 @@ export default function WargaScreen() {
           </View>
         </ScrollView>
       )}
+
+      {/* Resident Detail & Family Modal for Management */}
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => setDetailModalVisible(false)} hitSlop={8}>
+              <X size={22} color={Colors.stone[600]} />
+            </Pressable>
+            <Text style={styles.modalTitle}>Detail Warga & Keluarga</Text>
+            <View style={{ width: 22 }} />
+          </View>
+
+          {selectedMember && (
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              {/* Header profile info */}
+              <View style={styles.modalResidentHeader}>
+                <View style={styles.modalAvatarCircle}>
+                  <Text style={styles.modalAvatarText}>
+                    {selectedMember.full_name ? selectedMember.full_name[0]?.toUpperCase() : 'W'}
+                  </Text>
+                </View>
+                <Text style={styles.modalResidentName}>{selectedMember.full_name}</Text>
+                <View style={styles.modalBadgeRow}>
+                  <View
+                    style={[
+                      styles.modalStatusBadge,
+                      selectedMember.verification_status === 'verified'
+                        ? { backgroundColor: '#DCFCE7' }
+                        : { backgroundColor: '#FEF3C7' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.modalStatusBadgeText,
+                        selectedMember.verification_status === 'verified'
+                          ? { color: '#15803D' }
+                          : { color: '#B45309' },
+                      ]}
+                    >
+                      {selectedMember.verification_status === 'verified'
+                        ? 'Terverifikasi'
+                        : 'Menunggu Verifikasi'}
+                    </Text>
+                  </View>
+
+                  {selectedMember.is_primary && (
+                    <View style={styles.modalHeadBadge}>
+                      <Crown size={12} color="#B45309" weight="fill" />
+                      <Text style={styles.modalHeadBadgeText}>Kepala Keluarga</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Biodata Kependudukan */}
+              <View style={styles.modalSectionHeader}>
+                <IdentificationCard size={18} color={Colors.primary[700]} weight="bold" />
+                <Text style={styles.modalSectionTitle}>BIODATA KEPENDUDUKAN</Text>
+              </View>
+              <View style={styles.modalCard}>
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>NIK (No. KTP)</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.nik || '-'}</Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Nomor KK</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.kk_number || '-'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Jenis Kelamin</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.gender === 'male'
+                        ? 'Laki-laki'
+                        : selectedMember.gender === 'female'
+                        ? 'Perempuan'
+                        : '-'}
+                    </Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Golongan Darah</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.blood_type || '-'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Tempat, Tanggal Lahir</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.birth_place ? `${selectedMember.birth_place}, ` : ''}
+                      {selectedMember.birth_date || '-'}
+                    </Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Agama</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.religion || '-'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Pekerjaan</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.occupation || '-'}</Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Status Perkawinan</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.marital_status === 'single'
+                        ? 'Belum Menikah'
+                        : selectedMember.marital_status === 'married'
+                        ? 'Menikah'
+                        : selectedMember.marital_status === 'divorced'
+                        ? 'Cerai Hidup'
+                        : selectedMember.marital_status === 'widowed'
+                        ? 'Cerai Mati'
+                        : '-'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Kontak & Darurat */}
+              <View style={styles.modalSectionHeader}>
+                <PhoneCall size={18} color={Colors.primary[700]} weight="bold" />
+                <Text style={styles.modalSectionTitle}>KONTAK & DARURAT</Text>
+              </View>
+              <View style={styles.modalCard}>
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>Nomor HP / WhatsApp</Text>
+                  <Text style={styles.modalInfoValue}>
+                    {selectedMember.phone || 'Belum ditambahkan'}
+                  </Text>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Kontak Darurat</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.emergency_contact_name || '-'}
+                      {selectedMember.emergency_contact_relation
+                        ? ` (${selectedMember.emergency_contact_relation})`
+                        : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>No. Darurat</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.emergency_contact_phone || '-'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Data Rumah */}
+              <View style={styles.modalSectionHeader}>
+                <House size={18} color={Colors.primary[700]} weight="bold" />
+                <Text style={styles.modalSectionTitle}>DATA HUNIAN</Text>
+              </View>
+              <View style={styles.modalCard}>
+                <View style={styles.modalGridRow}>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Nomor Rumah</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.house
+                        ? `${selectedMember.house.block ? `Blok ${selectedMember.house.block} ` : ''}No. ${selectedMember.house.house_number}`
+                        : 'Belum terdaftar'}
+                    </Text>
+                  </View>
+                  <View style={styles.modalGridCol}>
+                    <Text style={styles.modalInfoLabel}>Wilayah</Text>
+                    <Text style={styles.modalInfoValue}>
+                      RT {selectedMember.rt?.code || '-'} / RW {selectedMember.rw?.code || '-'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Susunan Anggota Keluarga Rumah Ini */}
+              <View style={styles.modalSectionHeader}>
+                <Users size={18} color={Colors.primary[700]} weight="bold" />
+                <Text style={styles.modalSectionTitle}>
+                  SUSUNAN ANGGOTA KELUARGA ({selectedMemberFamily.length})
+                </Text>
+              </View>
+              <View style={styles.modalCard}>
+                {loadingSelectedFamily ? (
+                  <LoadingState fullScreen={false} style={{ paddingVertical: 16 }} />
+                ) : selectedMemberFamily.length === 0 ? (
+                  <Text style={styles.emptyModalFamilyText}>
+                    Belum ada data anggota keluarga tambahan yang didaftarkan di rumah ini.
+                  </Text>
+                ) : (
+                  selectedMemberFamily.map((fam, idx) => (
+                    <View key={fam.id}>
+                      {idx > 0 && <View style={styles.modalDivider} />}
+                      <View style={styles.modalFamRow}>
+                        <View style={styles.modalFamLeft}>
+                          <View style={styles.modalFamNameRow}>
+                            <Text style={styles.modalFamName}>{fam.full_name}</Text>
+                            <View
+                              style={[
+                                styles.relationTag,
+                                fam.relationship === 'head' && styles.relationTagHead,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.relationTagText,
+                                  fam.relationship === 'head' && styles.relationTagTextHead,
+                                ]}
+                              >
+                                {RELATIONSHIP_LABELS[fam.relationship] || fam.relationship}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.modalFamSub}>
+                            {fam.gender === 'male' ? 'L' : fam.gender === 'female' ? 'P' : ''}
+                            {fam.nik ? ` • NIK: ${fam.nik}` : ''}
+                            {fam.occupation ? ` • ${fam.occupation}` : ''}
+                          </Text>
+                          {fam.phone && (
+                            <Text style={styles.modalFamPhone}>📞 {fam.phone}</Text>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+
+              {/* Action Verification Button for RT/RW/Developer */}
+              {selectedMember.verification_status !== 'verified' && (
+                <Button
+                  label="Verifikasi Warga Ini"
+                  icon={<CheckCircle size={18} color="#FFFFFF" weight="bold" />}
+                  variant="primary"
+                  onPress={() => {
+                    handleVerifyMember(selectedMember);
+                    setDetailModalVisible(false);
+                  }}
+                  fullWidth
+                  style={{ marginTop: Spacing[4], marginBottom: Spacing[6] }}
+                />
+              )}
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -627,6 +988,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 12,
   },
+  claimNowBtn: {
+    marginTop: Spacing[2],
+    alignSelf: 'flex-start',
+    backgroundColor: '#D97706',
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 6,
+    borderRadius: Radius.xs,
+  },
+  claimNowBtnText: {
+    ...Typography.label,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   sectionHeading: {
     ...Typography.overline,
     color: Colors.stone[400],
@@ -781,5 +1156,216 @@ const styles = StyleSheet.create({
     color: Colors.stone[500],
     textAlign: 'center',
     marginTop: Spacing[1],
+  },
+  cardTapHint: {
+    ...Typography.bodyS,
+    fontSize: 10,
+    color: Colors.primary[600],
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  subHeading: {
+    ...Typography.overline,
+    color: Colors.stone[500],
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: Spacing[2],
+  },
+  relationTag: {
+    backgroundColor: Colors.stone[100],
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  relationTagHead: {
+    backgroundColor: '#FEF3C7',
+  },
+  relationTagText: {
+    ...Typography.overline,
+    fontSize: 9,
+    color: Colors.stone[600],
+    fontWeight: '700',
+  },
+  relationTagTextHead: {
+    color: '#B45309',
+  },
+  manageFamilyBtn: {
+    marginTop: Spacing[3],
+    paddingVertical: Spacing[2],
+    alignItems: 'center',
+    backgroundColor: Colors.primary[50],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary[100],
+  },
+  manageFamilyBtnText: {
+    ...Typography.bodyS,
+    color: Colors.primary[700],
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.stone[25],
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.stone[100],
+    backgroundColor: Colors.stone[0],
+  },
+  modalTitle: {
+    ...Typography.h3,
+    color: Colors.stone[800],
+    fontSize: 16,
+  },
+  modalScroll: {
+    padding: Spacing[4],
+    gap: Spacing[2],
+  },
+  modalResidentHeader: {
+    alignItems: 'center',
+    paddingVertical: Spacing[3],
+    backgroundColor: Colors.stone[0],
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.stone[100],
+    marginBottom: Spacing[2],
+  },
+  modalAvatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+  },
+  modalAvatarText: {
+    ...Typography.h2,
+    color: Colors.primary[700],
+  },
+  modalResidentName: {
+    ...Typography.h2,
+    fontSize: 18,
+    color: Colors.stone[800],
+    marginBottom: 4,
+  },
+  modalBadgeRow: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    alignItems: 'center',
+  },
+  modalStatusBadge: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  modalStatusBadgeText: {
+    ...Typography.overline,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  modalHeadBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  modalHeadBadgeText: {
+    ...Typography.overline,
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '700',
+  },
+  modalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing[2],
+    marginBottom: Spacing[1],
+  },
+  modalSectionTitle: {
+    ...Typography.overline,
+    fontSize: 11,
+    color: Colors.stone[600],
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  modalCard: {
+    backgroundColor: Colors.stone[0],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.stone[100],
+    padding: Spacing[4],
+  },
+  modalGridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+  },
+  modalGridCol: {
+    flex: 1,
+  },
+  modalInfoRow: {
+    paddingVertical: 2,
+  },
+  modalInfoLabel: {
+    ...Typography.bodyS,
+    fontSize: 11,
+    color: Colors.stone[400],
+    marginBottom: 2,
+  },
+  modalInfoValue: {
+    ...Typography.bodyM,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.stone[800],
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: Colors.stone[100],
+    marginVertical: Spacing[2],
+  },
+  emptyModalFamilyText: {
+    ...Typography.bodyS,
+    color: Colors.stone[400],
+    textAlign: 'center',
+    paddingVertical: Spacing[2],
+  },
+  modalFamRow: {
+    paddingVertical: 4,
+  },
+  modalFamLeft: {
+    flex: 1,
+  },
+  modalFamNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  modalFamName: {
+    ...Typography.bodyM,
+    fontWeight: '700',
+    color: Colors.stone[800],
+  },
+  modalFamSub: {
+    ...Typography.bodyS,
+    fontSize: 11,
+    color: Colors.stone[500],
+    marginTop: 2,
+  },
+  modalFamPhone: {
+    ...Typography.bodyS,
+    fontSize: 11,
+    color: Colors.primary[700],
+    marginTop: 2,
   },
 });

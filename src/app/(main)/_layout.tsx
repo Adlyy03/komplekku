@@ -22,7 +22,7 @@ import { isModuleEnabled } from '@/config/modules';
  */
 export default function MainLayout() {
   const { session, user, loading, initialized } = useSupabase();
-  const { activeRole, isDeveloper, isRw, isRt } = useComplex();
+  const { isDeveloper, isRw, isRt } = useComplex();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {

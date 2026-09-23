@@ -17,7 +17,7 @@ interface SupabaseContextType extends AuthState {
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<Profile, 'full_name' | 'phone' | 'avatar_path'>>) => Promise<{ error: Error | null }>;
+  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'created_at'>>) => Promise<{ error: Error | null }>;
 }
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
@@ -113,7 +113,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProfile = async (
-    updates: Partial<Pick<Profile, 'full_name' | 'phone' | 'avatar_path'>>
+    updates: Partial<Omit<Profile, 'id' | 'created_at'>>
   ) => {
     if (!state.user?.id) {
       return { error: new Error('User tidak terautentikasi') };

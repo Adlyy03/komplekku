@@ -19,7 +19,6 @@ import {
   XCircle,
   FileText,
   Clock,
-  User,
   House as HouseIcon,
 } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';

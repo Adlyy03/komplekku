@@ -13,13 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft, CheckCircle, Lightning, Receipt, CalendarBlank } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { getDues, createDue, generateDueBatch, formatRupiah } from '@/services/dues';
 import type { Due } from '@/types/database';
 
 export default function CreateBatchBillingScreen() {
-  const { user } = useAuth();
   const { activeRole } = useComplex();
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
 
@@ -301,7 +299,7 @@ export default function CreateBatchBillingScreen() {
             <Text style={styles.infoBannerTitle}>Target Otomatis & Aman</Text>
             <Text style={styles.infoBannerDesc}>
               Sistem database akan otomatis mengalokasikan tagihan ke seluruh rumah yang berstatus
-              terisi ('occupied'). Tagihan yang sudah pernah dibuat untuk periode yang sama
+              terisi (&apos;occupied&apos;). Tagihan yang sudah pernah dibuat untuk periode yang sama
               tidak akan digandakan (idempotent).
             </Text>
           </View>
