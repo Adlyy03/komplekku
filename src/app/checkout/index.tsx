@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -27,12 +27,14 @@ import { useSupabase } from '@/lib/supabase-provider';
 import { useCart } from '@/lib/cart-provider';
 import { createOrder } from '@/services/orders';
 import { formatRupiah } from '@/services/products';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 /**
  * Checkout Screen — PRD §31, §32, §33, §73 & desain.md §17
  * Single-seller checkout with delivery option, price breakdown, and order creation.
  */
 export default function CheckoutScreen() {
+  const isDesktop = useIsDesktop();
   const { sellerId } = useLocalSearchParams<{ sellerId: string }>();
   const { user } = useSupabase();
   const { sellerGroups, refreshCart } = useCart();
@@ -46,22 +48,34 @@ export default function CheckoutScreen() {
 
   if (!currentGroup || currentGroup.items.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.navBar}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButton}>Kembali</Text>
-          </Pressable>
-        </View>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Tidak ada barang yang dipilih untuk checkout.</Text>
-          <Button
-            label="Kembali ke Keranjang"
-            onPress={() => router.replace('/cart' as any)}
-            variant="secondary"
-          />
-        </View>
-      </SafeAreaView>
+      <DesktopShell
+        activeKey="/marketplace"
+        pageTitle="Checkout Pesanan"
+        breadcrumb={['Pasar', 'Keranjang', 'Checkout']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          {!isDesktop && (
+            <View style={styles.navBar}>
+              <Pressable
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/cart' as any))}
+                hitSlop={8}
+                style={styles.backTouch}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButton}>Kembali</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Tidak ada barang yang dipilih untuk checkout.</Text>
+            <Button
+              label="Kembali ke Keranjang"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/cart' as any))}
+              variant="secondary"
+            />
+          </View>
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
@@ -87,7 +101,7 @@ export default function CheckoutScreen() {
         setError(res.error.message);
       } else if (res.data) {
         await refreshCart();
-        Alert.alert('Pesanan Berhasil Dibuat!', `Nomor Pesanan: ${res.data.order_number}`, [
+        popup.alert('Pesanan Berhasil Dibuat!', `Nomor Pesanan: ${res.data.order_number}`, [
           {
             text: 'Lihat Status Pesanan',
             onPress: () => {
@@ -107,22 +121,33 @@ export default function CheckoutScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Nav Bar */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Batal</Text>
-        </Pressable>
-        <Text style={styles.navTitle}>Checkout</Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <DesktopShell
+      activeKey="/marketplace"
+      pageTitle="Checkout Pesanan"
+      breadcrumb={['Pasar', 'Keranjang', 'Checkout']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Nav Bar */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/cart' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle}>Checkout</Text>
+            <View style={{ width: 48 }} />
+          </View>
+        )}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
           {error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorBoxText}>{error}</Text>
@@ -261,7 +286,7 @@ export default function CheckoutScreen() {
       </KeyboardAvoidingView>
 
       {/* Sticky Bottom Bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, isDesktop && styles.desktopBottomBar]}>
         <View style={styles.bottomTotalRow}>
           <Text style={styles.bottomTotalLabel}>Total:</Text>
           <Text style={styles.bottomTotalValue}>{formatRupiah(grandTotal)}</Text>
@@ -276,6 +301,7 @@ export default function CheckoutScreen() {
         />
       </View>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -324,6 +350,21 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     gap: Spacing[4],
     paddingBottom: Spacing[8],
+  },
+  desktopScrollContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
+  },
+  desktopBottomBar: {
+    maxWidth: 680,
+    width: '100%',
+    alignSelf: 'center',
+    borderRadius: Radius.md,
+    marginBottom: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
   },
   errorBox: {
     backgroundColor: Colors.semantic.error[50],

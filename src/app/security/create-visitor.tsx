@@ -6,9 +6,9 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft, QrCode } from 'phosphor-react-native';
@@ -16,8 +16,10 @@ import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { createVisitorPass } from '@/services/security';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function CreateVisitorScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { household } = useComplex();
   const houseId = household?.house?.id;
@@ -45,7 +47,7 @@ export default function CreateVisitorScreen() {
     if (!user?.id) return;
 
     if (!houseId) {
-      Alert.alert(
+      popup.warning(
         'Rumah Belum Terhubung',
         'Anda harus menghubungkan akun dengan nomor rumah terlebih dahulu untuk membuat izin tamu.'
       );
@@ -53,7 +55,7 @@ export default function CreateVisitorScreen() {
     }
 
     if (!guestName.trim()) {
-      Alert.alert('Validasi Gagal', 'Mohon isi nama tamu yang akan berkunjung.');
+      popup.warning('Validasi Gagal', 'Mohon isi nama tamu yang akan berkunjung.');
       return;
     }
 
@@ -71,9 +73,9 @@ export default function CreateVisitorScreen() {
       });
 
       if (error || !data) {
-        Alert.alert('Gagal Membuat Izin', error?.message || 'Terjadi kesalahan sistem.');
+        popup.error('Gagal Membuat Izin', error?.message || 'Terjadi kesalahan sistem.');
       } else {
-        Alert.alert(
+        popup.alert(
           'Izin Tamu Berhasil Dibuat!',
           `Kode Akses Gerbang: ${data.access_code}\n\nBagikan kode ini kepada tamu untuk ditunjukkan ke satpam di gerbang utama komplek.`,
           [{ text: 'Lihat Daftar Tamu', onPress: () => router.back() }]
@@ -85,20 +87,31 @@ export default function CreateVisitorScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Buat Izin Masuk Tamu</Text>
-        <Text style={styles.subtitle}>
-          Tamu Anda akan mendapatkan kode akses digital untuk pemeriksaan di pos satpam.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/security/visitor"
+      pageTitle="Buat Izin Masuk Tamu"
+      breadcrumb={['Keamanan', 'Buku Tamu', 'Buat Izin']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/security/visitor' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Buat Izin Masuk Tamu</Text>
+            <Text style={styles.subtitle}>
+              Tamu Anda akan mendapatkan kode akses digital untuk pemeriksaan di pos satpam.
+            </Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nama Tamu / Pengunjung</Text>
@@ -201,7 +214,8 @@ export default function CreateVisitorScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -316,5 +330,11 @@ const styles = StyleSheet.create({
     ...Typography.label,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  desktopContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

@@ -42,12 +42,14 @@ import { getComplaints, type ComplaintWithDetails } from '@/services/complaints'
 import { getActiveEmergencies, type EmergencyWithDetails } from '@/services/security';
 import { PaymentVerifyModal } from '@/components/PaymentVerifyModal';
 import { Image } from 'expo-image';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 /**
  * Komplekku Dashboard — PRD v2 §6, §21 & §30
  * The Central Hub connecting residents and managers (Warga, RT, RW, Developer).
  */
 export default function DashboardScreen() {
+  const isDesktop = useIsDesktop();
   const { user, profile } = useSupabase();
   const { complexSettings, household, activeRole, refreshComplex } =
     useComplex();
@@ -163,19 +165,24 @@ export default function DashboardScreen() {
     0
   );
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary[600]]}
-          />
-        }
-      >
-        {/* Top Header Bar */}
+  const isManagement = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
+
+  const mainScrollView = (
+    <ScrollView
+      contentContainerStyle={[
+        styles.scrollContent,
+        isDesktop && isManagement && styles.desktopScrollContent,
+      ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[Colors.primary[600]]}
+        />
+      }
+    >
+      {/* Top Header Bar (only shown on mobile) */}
+      {!isDesktop && (
         <View style={styles.topBar}>
           <CommunityHeader />
           <View style={styles.headerRightActions}>
@@ -210,14 +217,15 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      )}
 
-        {/* ACTIVE EMERGENCY BANNER (PHASE 7 SOS) */}
-        {activeEmergencies.length > 0 && (
-          <TouchableOpacity
-            style={styles.globalEmergencyBanner}
-            onPress={() => router.push('/security/sos' as any)}
-            activeOpacity={0.8}
-          >
+      {/* ACTIVE EMERGENCY BANNER (PHASE 7 SOS) */}
+      {activeEmergencies.length > 0 && (
+        <TouchableOpacity
+          style={styles.globalEmergencyBanner}
+          onPress={() => router.push('/security/sos' as any)}
+          activeOpacity={0.8}
+        >
             <Warning size={22} color="#FFFFFF" weight="fill" />
             <View style={{ flex: 1 }}>
               <Text style={styles.globalEmergencyTitle}>
@@ -586,6 +594,20 @@ export default function DashboardScreen() {
               <View style={styles.modulesGrid}>
                 <TouchableOpacity
                   style={styles.moduleCard}
+                  onPress={() => router.push('/warga' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: Colors.primary[50] }]}>
+                    <Users size={24} color={Colors.primary[600]} weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Data Warga</Text>
+                  <Text style={styles.moduleSubtitle}>
+                    {adminStats?.totalResidents ?? 0} Warga
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moduleCard}
                   onPress={() => router.push('/admin' as any)}
                   activeOpacity={0.7}
                 >
@@ -594,18 +616,6 @@ export default function DashboardScreen() {
                   </View>
                   <Text style={styles.moduleTitle}>Panel Lengkap</Text>
                   <Text style={styles.moduleSubtitle}>Semua Modul</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.moduleCard}
-                  onPress={() => router.push('/admin' as any)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.moduleIconBox, { backgroundColor: '#F3F4F6' }]}>
-                    <Gear size={24} color={Colors.stone[700]} weight="fill" />
-                  </View>
-                  <Text style={styles.moduleTitle}>Pengaturan</Text>
-                  <Text style={styles.moduleSubtitle}>Data Komplek</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -624,6 +634,18 @@ export default function DashboardScreen() {
 
                 <TouchableOpacity
                   style={styles.moduleCard}
+                  onPress={() => router.push('/finance' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: '#FEF3C7' }]}>
+                    <Receipt size={24} color="#D97706" weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Kas & Keuangan</Text>
+                  <Text style={styles.moduleSubtitle}>Laporan Arus Kas</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moduleCard}
                   onPress={() => router.push('/announcements' as any)}
                   activeOpacity={0.7}
                 >
@@ -632,6 +654,18 @@ export default function DashboardScreen() {
                   </View>
                   <Text style={styles.moduleTitle}>Pengumuman</Text>
                   <Text style={styles.moduleSubtitle}>Seluruh Komplek</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moduleCard}
+                  onPress={() => router.push('/admin' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.moduleIconBox, { backgroundColor: '#F3F4F6' }]}>
+                    <Gear size={24} color={Colors.stone[700]} weight="fill" />
+                  </View>
+                  <Text style={styles.moduleTitle}>Pengaturan</Text>
+                  <Text style={styles.moduleSubtitle}>Data Komplek</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -920,6 +954,39 @@ export default function DashboardScreen() {
           </View>
         )}
       </ScrollView>
+  );
+
+  if (isDesktop) {
+    return (
+      <DesktopShell
+        activeKey="/(main)"
+        pageTitle={
+          activeRole === 'developer'
+            ? 'Ringkasan Eksekutif Developer'
+            : activeRole === 'rw'
+            ? 'Pusat Koordinasi RW'
+            : activeRole === 'rt'
+            ? 'Panel Operasional RT'
+            : 'Beranda Warga'
+        }
+        breadcrumb={['Dashboard', isManagement ? 'Ringkasan' : 'Beranda']}
+      >
+        <View style={styles.desktopContainer}>{mainScrollView}</View>
+
+        {/* Payment Verification Modal */}
+        <PaymentVerifyModal
+          visible={verifyModalVisible}
+          assignment={selectedVerifyAssignment}
+          onClose={() => setVerifyModalVisible(false)}
+          onSuccess={() => void loadDashboardData()}
+        />
+      </DesktopShell>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {mainScrollView}
 
       {/* Payment Verification Modal */}
       <PaymentVerifyModal
@@ -936,6 +1003,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.stone[25],
+  },
+  desktopContainer: {
+    flex: 1,
+    padding: Spacing[6],
+    backgroundColor: Colors.stone[25],
+  },
+  desktopScrollContent: {
+    paddingBottom: Spacing[10],
   },
   scrollContent: {
     paddingBottom: Spacing[10],

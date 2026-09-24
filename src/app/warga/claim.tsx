@@ -6,9 +6,9 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
@@ -27,8 +27,10 @@ import { getHouses } from '@/services/residents';
 import { submitHouseClaim, getMyClaims, type HouseClaimWithDetails } from '@/services/claims';
 import { joinFamilyByCode } from '@/services/family';
 import type { House, HouseClaimOccupancy } from '@/types/database';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function ClaimHouseScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { household } = useComplex();
 
@@ -68,7 +70,7 @@ export default function ClaimHouseScreen() {
     if (!user?.id) return;
 
     if (!selectedHouseId) {
-      Alert.alert('Validasi Gagal', 'Silakan pilih rumah yang akan Anda klaim.');
+      popup.warning('Validasi Gagal', 'Silakan pilih rumah yang akan Anda klaim.');
       return;
     }
 
@@ -82,9 +84,9 @@ export default function ClaimHouseScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal Mengajukan Klaim', error.message);
+        popup.error('Gagal Mengajukan Klaim', error.message);
       } else {
-        Alert.alert(
+        popup.alert(
           'Klaim Terkirim!',
           'Pengajuan klaim rumah Anda berhasil dikirim ke pengurus RT/RW untuk diverifikasi.',
           [{ text: 'OK', onPress: () => loadData() }]
@@ -99,7 +101,7 @@ export default function ClaimHouseScreen() {
     if (!user?.id) return;
     const clean = familyCodeInput.trim().toUpperCase();
     if (clean.length !== 7) {
-      Alert.alert('Validasi Gagal', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
+      popup.warning('Validasi Gagal', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
       return;
     }
 
@@ -107,9 +109,9 @@ export default function ClaimHouseScreen() {
     try {
       const { data, error } = await joinFamilyByCode(user.id, clean);
       if (error || !data) {
-        Alert.alert('Gagal Terhubung', error?.message || 'ID Keluarga tidak ditemukan.');
+        popup.error('Gagal Terhubung', error?.message || 'ID Keluarga tidak ditemukan.');
       } else {
-        Alert.alert(
+        popup.alert(
           'Berhasil Terhubung!',
           `Anda berhasil bergabung ke rumah ${data.block ? `Blok ${data.block} ` : ''}No. ${data.house_number}.`,
           [{ text: 'OK', onPress: () => router.replace('/(main)/profile' as any) }]
@@ -123,29 +125,36 @@ export default function ClaimHouseScreen() {
   const pendingClaim = claims.find((c) => c.status === 'pending');
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
-          hitSlop={8}
-          style={styles.backButton}
-        >
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Klaim Rumah Saya</Text>
-        <Text style={styles.subtitle}>
-          Hubungkan akun Anda dengan nomor rumah di komplek untuk mengakses iuran dan layanan.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/profile"
+      pageTitle="Klaim Rumah Saya"
+      breadcrumb={['Profil', 'Klaim Rumah']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Klaim Rumah Saya</Text>
+            <Text style={styles.subtitle}>
+              Hubungkan akun Anda dengan nomor rumah di komplek untuk mengakses iuran dan layanan.
+            </Text>
+          </View>
+        )}
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary[600]} />
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={Colors.primary[600]} />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]} keyboardShouldPersistTaps="handled">
           {/* Current Linked House Banner if any */}
           {household?.house && (
             <View style={styles.activeHouseCard}>
@@ -374,6 +383,7 @@ export default function ClaimHouseScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -420,6 +430,12 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing[4],
     gap: Spacing[4],
+  },
+  desktopContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   activeHouseCard: {
     flexDirection: 'row',

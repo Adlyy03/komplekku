@@ -27,12 +27,14 @@ import { getMyHouseDues, formatRupiah, type DueAssignmentWithDetails } from '@/s
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { isModuleEnabled } from '@/config/modules';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 /**
  * Module Iuran — PRD v2 §13 & §6.2
  * Overview of resident house billings, payment proofs, and historical status.
  */
 export default function IuranScreen() {
+  const isDesktop = useIsDesktop();
   const { household, activeRole } = useComplex();
   const houseId = household?.house?.id;
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
@@ -109,28 +111,35 @@ export default function IuranScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        {router.canGoBack() && (
-          <TouchableOpacity
-            onPress={() => router.back()}
-            hitSlop={8}
-            style={styles.backButton}
-          >
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButtonText}>Kembali</Text>
-          </TouchableOpacity>
+    <DesktopShell
+      activeKey="/iuran"
+      pageTitle={isManager ? 'Iuran & Kas Komplek' : 'Iuran Rumah Saya'}
+      breadcrumb={['Keuangan', 'Iuran']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Top Header (mobile only) */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            {router.canGoBack() && (
+              <TouchableOpacity
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+                hitSlop={8}
+                style={styles.backButton}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButtonText}>Kembali</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.title}>Iuran Komplek</Text>
+            <Text style={styles.subtitle}>
+              {household?.house
+                ? `Tagihan & riwayat iuran rumah Blok ${household.house.block || '-'} No. ${household.house.house_number || '-'}`
+                : isManager
+                ? 'Pusat pengelolaan iuran dan keuangan RT/RW'
+                : 'Layanan iuran warga komplek'}
+            </Text>
+          </View>
         )}
-        <Text style={styles.title}>Iuran Komplek</Text>
-        <Text style={styles.subtitle}>
-          {household?.house
-            ? `Tagihan & riwayat iuran rumah Blok ${household.house.block || '-'} No. ${household.house.house_number || '-'}`
-            : isManager
-            ? 'Pusat pengelolaan iuran dan keuangan RT/RW'
-            : 'Layanan iuran warga komplek'}
-        </Text>
-      </View>
 
       {loading ? (
         <LoadingState fullScreen={false} style={{ flex: 1 }} />
@@ -281,6 +290,7 @@ export default function IuranScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 

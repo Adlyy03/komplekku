@@ -1,12 +1,11 @@
-import React from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -22,12 +21,14 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useCart } from '@/lib/cart-provider';
 import { formatRupiah } from '@/services/products';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 /**
  * Cart Screen — PRD §27, §28, §90 & desain.md §16
  * Grouped by seller to enforce the Single-Seller Checkout rule.
  */
 export default function CartScreen() {
+  const isDesktop = useIsDesktop();
   const { sellerGroups, totalItemCount, loading, updateQuantity, removeItem } = useCart();
 
   if (loading) {
@@ -42,21 +43,20 @@ export default function CartScreen() {
     }
     const res = await updateQuantity(itemId, productId, nextQty);
     if (res.error) {
-      Alert.alert('Gagal Mengubah Jumlah', res.error.message);
+      popup.error('Gagal Mengubah Jumlah', res.error.message);
     }
   };
 
   const handleRemoveItem = (itemId: string, name: string) => {
-    Alert.alert('Hapus Barang', `Hapus ${name} dari keranjang?`, [
-      { text: 'Batal', style: 'cancel' },
-      {
-        text: 'Hapus',
-        style: 'destructive',
-        onPress: async () => {
-          await removeItem(itemId);
-        },
+    popup.confirm({
+      title: 'Hapus Barang',
+      message: `Hapus ${name} dari keranjang?`,
+      confirmText: 'Hapus',
+      destructive: true,
+      onConfirm: async () => {
+        await removeItem(itemId);
       },
-    ]);
+    });
   };
 
   const handleCheckoutSellerGroup = (sellerId: string) => {
@@ -67,26 +67,37 @@ export default function CartScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Nav Header */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Kembali</Text>
-        </Pressable>
-        <Text style={styles.navTitle}>Keranjang ({totalItemCount})</Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <DesktopShell
+      activeKey="/marketplace"
+      pageTitle={`Keranjang Belanja (${totalItemCount})`}
+      breadcrumb={['Pasar', 'Keranjang']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Nav Header */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle}>Keranjang ({totalItemCount})</Text>
+            <View style={{ width: 48 }} />
+          </View>
+        )}
 
-      {sellerGroups.length === 0 ? (
-        <EmptyState
-          title="Keranjang Belanja Kosong"
-          description="Yuk, jelajahi produk dan makanan lezat buatan tetangga di komplekmu!"
-          actionLabel="Mulai Belanja"
-          onAction={() => router.push('/(main)/marketplace')}
-        />
-      ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        {sellerGroups.length === 0 ? (
+          <EmptyState
+            title="Keranjang Belanja Kosong"
+            description="Yuk, jelajahi produk dan makanan lezat buatan tetangga di komplekmu!"
+            actionLabel="Mulai Belanja"
+            onAction={() => router.push('/(main)/marketplace')}
+          />
+        ) : (
+          <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
           {/* Notice for single-seller checkout rule per PRD §28, §90 */}
           <View style={styles.ruleNotice}>
             <Info size={18} color={Colors.primary[700]} weight="bold" />
@@ -188,6 +199,7 @@ export default function CartScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -224,6 +236,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing[4],
     gap: Spacing[4],
+  },
+  desktopScrollContent: {
+    maxWidth: 760,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   ruleNotice: {
     flexDirection: 'row',

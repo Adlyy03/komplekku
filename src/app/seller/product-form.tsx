@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -19,12 +19,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { getCategories } from '@/services/products';
 import { createProduct } from '@/services/sellers';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { Category } from '@/types/database';
 
 /**
  * Product Creation / Edit Screen — PRD §18, §19, §25 & desain.md §15
  */
 export default function ProductFormScreen() {
+  const isDesktop = useIsDesktop();
   const { sellerId } = useLocalSearchParams<{
     sellerId: string;
     communityId?: string;
@@ -60,7 +62,7 @@ export default function ProductFormScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Izin Dibutuhkan', 'Izin akses galeri dibutuhkan untuk memilih foto produk.');
+        popup.warning('Izin Dibutuhkan', 'Izin akses galeri dibutuhkan untuk memilih foto produk.');
         return;
       }
 
@@ -131,7 +133,7 @@ export default function ProductFormScreen() {
       if (res.error) {
         setError(res.error.message);
       } else {
-        Alert.alert('Sukses', 'Produk berhasil ditambahkan ke tokomu!', [
+        popup.alert('Sukses', 'Produk berhasil ditambahkan ke tokomu!', [
           {
             text: 'Lihat Produk',
             onPress: () => router.back(),
@@ -146,22 +148,33 @@ export default function ProductFormScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Nav Header */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Batal</Text>
-        </Pressable>
-        <Text style={styles.navTitle}>Tambah Produk</Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <DesktopShell
+      activeKey="/seller"
+      pageTitle="Tambah Produk Baru"
+      breadcrumb={['Pasar', 'Toko Saya', 'Tambah Produk']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Nav Header (mobile only) */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/seller' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle}>Tambah Produk</Text>
+            <View style={{ width: 48 }} />
+          </View>
+        )}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
           {error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorBoxText}>{error}</Text>
@@ -314,6 +327,7 @@ export default function ProductFormScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -348,6 +362,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing[5],
     gap: Spacing[4],
+  },
+  desktopScrollContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   errorBox: {
     backgroundColor: Colors.semantic.error[50],

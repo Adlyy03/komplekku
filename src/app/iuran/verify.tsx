@@ -6,11 +6,11 @@ import {
   View,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Image,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
@@ -31,8 +31,10 @@ import {
   formatRupiah,
   type DueAssignmentWithDetails,
 } from '@/services/dues';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function VerifyDuePaymentsScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { activeRole } = useComplex();
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
@@ -50,7 +52,7 @@ export default function VerifyDuePaymentsScreen() {
         status: 'pending_verification',
       });
       if (error) {
-        Alert.alert('Gagal Memuat', error.message);
+        popup.error('Gagal Memuat', error.message);
       } else {
         setAssignments(data);
         // Load signed URLs for proofs
@@ -86,13 +88,13 @@ export default function VerifyDuePaymentsScreen() {
     if (!user?.id) return;
     const payment = item.payments?.[item.payments.length - 1];
     if (!payment) {
-      Alert.alert('Error', 'Data transaksi pembayaran tidak ditemukan.');
+      popup.error('Error', 'Data transaksi pembayaran tidak ditemukan.');
       return;
     }
 
     const reason = rejectReason[item.id] || '';
     if (status === 'rejected' && !reason.trim()) {
-      Alert.alert('Catatan Wajib', 'Mohon isi alasan penolakan agar warga mengetahui kendalanya.');
+      popup.warning('Catatan Wajib', 'Mohon isi alasan penolakan agar warga mengetahui kendalanya.');
       return;
     }
 
@@ -107,9 +109,9 @@ export default function VerifyDuePaymentsScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
-        Alert.alert(
+        popup.success(
           'Sukses',
           status === 'approved' ? 'Pembayaran berhasil disetujui (Lunas).' : 'Pembayaran telah ditolak.'
         );
@@ -122,40 +124,60 @@ export default function VerifyDuePaymentsScreen() {
 
   if (!isManager) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorBox}>
-          <Text style={styles.errorTitle}>Akses Ditolak</Text>
-          <Text style={styles.errorDesc}>Hanya pengurus yang dapat memverifikasi pembayaran iuran.</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>Kembali</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <DesktopShell
+        activeKey="/iuran"
+        pageTitle="Verifikasi Pembayaran"
+        breadcrumb={['Iuran', 'Verifikasi']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Akses Ditolak</Text>
+            <Text style={styles.errorDesc}>Hanya pengurus yang dapat memverifikasi pembayaran iuran.</Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/iuran' as any))}
+            >
+              <Text style={styles.backBtnText}>Kembali</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Verifikasi Pembayaran Iuran</Text>
-        <Text style={styles.subtitle}>
-          Daftar pembayaran warga yang menunggu konfirmasi bukti transfer/pembayaran.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/iuran"
+      pageTitle="Verifikasi Pembayaran Iuran"
+      breadcrumb={['Iuran', 'Verifikasi']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/iuran' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Verifikasi Pembayaran Iuran</Text>
+            <Text style={styles.subtitle}>
+              Daftar pembayaran warga yang menunggu konfirmasi bukti transfer/pembayaran.
+            </Text>
+          </View>
+        )}
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary[600]} />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={Colors.primary[600]} />
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]}
+            refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
@@ -268,6 +290,7 @@ export default function VerifyDuePaymentsScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -314,6 +337,12 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing[4],
     gap: Spacing[4],
+  },
+  desktopContent: {
+    maxWidth: 760,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   card: {
     backgroundColor: Colors.stone[0],

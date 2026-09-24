@@ -1,0 +1,49 @@
+services:
+  expo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: komplekku-expo
+    # Bridge network + explicit port publish → shows in Docker Dashboard
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    environment:
+      - EXPO_PUBLIC_SUPABASE_URL=${EXPO_PUBLIC_SUPABASE_URL}
+      - EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}
+      - EXPO_NO_TELEMETRY=1
+      - CI=false
+      # Tell Expo to broadcast host LAN IP in QR code (not container IP)
+      # Change this to your machine's LAN IP if it changes
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${DOCKER_HOST_IP:-192.168.175.78}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.expo
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  expo-tunnel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: komplekku-expo-tunnel
+    ports:
+      - "8081:8081"
+    environment:
+      - EXPO_PUBLIC_SUPABASE_URL=${EXPO_PUBLIC_SUPABASE_URL}
+      - EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}
+      - EXPO_NO_TELEMETRY=1
+      - CI=false
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.expo
+    stdin_open: true
+    tty: true
+    command: ["npx", "expo", "start", "--tunnel", "--port", "8081"]
+    profiles:
+      - tunnel

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -8,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useSupabase } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { isModuleEnabled } from '@/config/modules';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import {
   createSellerProfile,
   getSellerProducts,
@@ -33,6 +34,7 @@ import type { SellerProfile } from '@/types/database';
  * Seller Dashboard / Become Seller Screen — PRD §24, §25, §96 & desain.md §15
  */
 export default function SellerDashboardScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useSupabase();
   const { complexSettings } = useComplex();
 
@@ -114,7 +116,7 @@ export default function SellerDashboardScreen() {
         setCreateError(error.message);
       } else if (data) {
         setSeller(data);
-        Alert.alert('Sukses', 'Toko kamu berhasil dibuka! Sekarang kamu bisa mulai menambah produk.');
+        popup.success('Sukses', 'Toko kamu berhasil dibuka! Sekarang kamu bisa mulai menambah produk.');
       }
     } finally {
       setCreatingStore(false);
@@ -125,26 +127,24 @@ export default function SellerDashboardScreen() {
     const nextStatus = product.status === 'active' ? 'inactive' : 'active';
     const actionText = nextStatus === 'active' ? 'aktifkan' : 'nonaktifkan';
 
-    Alert.alert(
-      'Ubah Status Produk',
-      `Apakah kamu yakin ingin me-${actionText} produk "${product.name}"?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Ya, Ubah',
-          onPress: async () => {
-            const { error } = await toggleProductStatus(product.id, nextStatus);
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              setProducts((prev) =>
-                prev.map((p) => (p.id === product.id ? { ...p, status: nextStatus } : p))
-              );
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: 'Ubah Status Produk',
+      message: `Apakah kamu yakin ingin me-${actionText} produk "${product.name}"?`,
+      confirmText: nextStatus === 'active' ? 'Aktifkan' : 'Nonaktifkan',
+      cancelText: 'Batal',
+      destructive: nextStatus === 'inactive',
+      onConfirm: async () => {
+        const { error } = await toggleProductStatus(product.id, nextStatus);
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          popup.success('Sukses', `Status produk berhasil diubah menjadi ${nextStatus}.`);
+          setProducts((prev) =>
+            prev.map((p) => (p.id === product.id ? { ...p, status: nextStatus } : p))
+          );
+        }
+      },
+    });
   };
 
   if (!isModuleEnabled('marketplace')) {
@@ -158,76 +158,110 @@ export default function SellerDashboardScreen() {
   // Not a seller yet -> Show Become Seller Form
   if (!seller) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.navBar}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButton}>Kembali</Text>
-          </Pressable>
-          <Text style={styles.navTitle}>Buka Toko</Text>
-          <View style={{ width: 48 }} />
-        </View>
+      <DesktopShell
+        activeKey="/seller"
+        pageTitle="Buka Toko UMKM Warga"
+        breadcrumb={['Pasar', 'Buka Toko']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          {!isDesktop && (
+            <View style={styles.navBar}>
+              <Pressable
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+                hitSlop={8}
+                style={styles.backTouch}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButton}>Kembali</Text>
+              </Pressable>
+              <Text style={styles.navTitle}>Buka Toko</Text>
+              <View style={{ width: 48 }} />
+            </View>
+          )}
 
-        <View style={styles.formContainer}>
-          <View style={styles.formHero}>
-            <Text style={styles.heroTitle}>Mulai Jualan ke Tetangga</Text>
-            <Text style={styles.heroSubtitle}>
-              Buka toko di {complexSettings?.name || 'Komplekku'} untuk menjual masakan rumahan, kebutuhan pokok, atau jasa ke warga sekitar.
-            </Text>
+          <View style={[styles.formContainer, isDesktop && styles.desktopFormContainer]}>
+            <View style={styles.formHero}>
+              <Text style={styles.heroTitle}>Mulai Jualan ke Tetangga</Text>
+              <Text style={styles.heroSubtitle}>
+                Buka toko di {complexSettings?.name || 'Komplekku'} untuk menjual masakan rumahan, kebutuhan pokok, atau jasa ke warga sekitar.
+              </Text>
+            </View>
+
+            <View style={styles.formCard}>
+              {createError && (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorBoxText}>{createError}</Text>
+                </View>
+              )}
+
+              <Input
+                label="Nama Toko"
+                placeholder="Contoh: Dapur Mama Budi / Warung Bu Siti"
+                value={storeName}
+                onChangeText={setStoreName}
+              />
+
+              <Input
+                label="Deskripsi Toko (Opsional)"
+                placeholder="Ceritakan barang atau jasa yang kamu tawarkan..."
+                multiline
+                numberOfLines={3}
+                style={{ minHeight: 72 }}
+                value={storeDesc}
+                onChangeText={setStoreDesc}
+              />
+
+              <Button
+                label="Buka Toko Sekarang"
+                onPress={handleCreateStore}
+                variant="primary"
+                loading={creatingStore}
+                fullWidth
+                style={{ marginTop: Spacing[2] }}
+              />
+            </View>
           </View>
-
-          <View style={styles.formCard}>
-            {createError && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorBoxText}>{createError}</Text>
-              </View>
-            )}
-
-            <Input
-              label="Nama Toko"
-              placeholder="Contoh: Dapur Mama Budi / Warung Bu Siti"
-              value={storeName}
-              onChangeText={setStoreName}
-            />
-
-            <Input
-              label="Deskripsi Toko (Opsional)"
-              placeholder="Ceritakan barang atau jasa yang kamu tawarkan..."
-              multiline
-              numberOfLines={3}
-              style={{ minHeight: 72 }}
-              value={storeDesc}
-              onChangeText={setStoreDesc}
-            />
-
-            <Button
-              label="Buka Toko Sekarang"
-              onPress={handleCreateStore}
-              variant="primary"
-              loading={creatingStore}
-              fullWidth
-              style={{ marginTop: Spacing[2] }}
-            />
-          </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
   // Seller Dashboard
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Nav Header */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Kembali</Text>
-        </Pressable>
-        <Text style={styles.navTitle}>Dashboard Penjual</Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <DesktopShell
+      activeKey="/seller"
+      pageTitle="Dashboard Penjual"
+      breadcrumb={['Pasar', 'Toko Saya']}
+      headerAction={
+        <Button
+          label="+ Tambah Produk"
+          variant="primary"
+          onPress={() =>
+            router.push({
+              pathname: '/seller/product-form' as any,
+              params: { sellerId: seller.id },
+            })
+          }
+        />
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Nav Header (mobile only) */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle}>Dashboard Penjual</Text>
+          </View>
+        )}
 
-      {/* Store Info Banner */}
+        {/* Store Info Banner */}
       <View style={styles.storeBanner}>
         <View style={styles.storeAvatar}>
           <Text style={styles.storeAvatarText}>
@@ -340,7 +374,8 @@ export default function SellerDashboardScreen() {
           );
         }}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -547,5 +582,11 @@ const styles = StyleSheet.create({
   },
   statusPillTextInactive: {
     color: Colors.stone[500],
+  },
+  desktopFormContainer: {
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

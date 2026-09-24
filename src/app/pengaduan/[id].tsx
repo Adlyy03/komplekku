@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -29,6 +29,7 @@ import {
 } from '@/services/complaints';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Button } from '@/components/ui/Button';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { ComplaintStatus } from '@/types';
 
 /**
@@ -36,6 +37,7 @@ import type { ComplaintStatus } from '@/types';
  * Shows status progression, resolution note, and resolution timeline.
  */
 export default function ComplaintDetailScreen() {
+  const isDesktop = useIsDesktop();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSupabase();
   const { isDeveloper, isRw, isRt } = useComplex();
@@ -77,7 +79,7 @@ export default function ComplaintDetailScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
         setCommentText('');
         await loadData();
@@ -107,10 +109,10 @@ export default function ComplaintDetailScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
         setStatusModalVisible(false);
-        Alert.alert('Sukses', 'Status pengaduan berhasil diperbarui.');
+        popup.success('Sukses', 'Status pengaduan berhasil diperbarui.');
         await loadData();
       }
     } finally {
@@ -150,17 +152,28 @@ export default function ComplaintDetailScreen() {
   const currentIndex = getStepIndex(complaint.status);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Daftar Pengaduan</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Detail Pengaduan</Text>
-      </View>
+    <DesktopShell
+      activeKey="/pengaduan"
+      pageTitle="Detail Pengaduan"
+      breadcrumb={['Pelayanan', 'Pengaduan', complaint.title]}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/pengaduan' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Detail Pengaduan</Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
         {/* Status Pipeline Progress (PRD v2 §16) */}
         <View style={styles.pipelineCard}>
           <Text style={styles.pipelineHeading}>STATUS PENANGANAN</Text>
@@ -417,7 +430,8 @@ export default function ComplaintDetailScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -783,5 +797,11 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: 'row',
     gap: Spacing[3],
+  },
+  desktopScrollContent: {
+    maxWidth: 840,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

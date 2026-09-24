@@ -23,9 +23,11 @@ import {
 } from '@/services/chat';
 import { getProductById, formatRupiah, ProductWithDetails } from '@/services/products';
 import { supabase } from '@/lib/supabase';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { Message } from '@/types/database';
 
 export default function ChatRoomScreen() {
+  const isDesktop = useIsDesktop();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
@@ -178,140 +180,149 @@ export default function ChatRoomScreen() {
   const showQuickReplies = messages.length <= 2;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    <DesktopShell
+      activeKey="/chat"
+      pageTitle={counterpart?.full_name ? `Chat: ${counterpart.full_name}` : 'Obrolan'}
+      breadcrumb={['Pesan', counterpart?.full_name || 'Obrolan']}
     >
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          accessibilityLabel="Kembali"
-        >
-          <CaretLeft size={24} color={Colors.stone[800]} />
-        </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={[styles.container, !isDesktop && { paddingTop: insets.top }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* Top Bar */}
+        {!isDesktop && (
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/chat' as any))}
+              style={styles.backBtn}
+              accessibilityLabel="Kembali"
+            >
+              <CaretLeft size={24} color={Colors.stone[800]} />
+            </TouchableOpacity>
 
-        <View style={styles.counterpartAvatarContainer}>
-          {counterpart?.avatar_url ? (
-            <Image
-              source={{ uri: counterpart.avatar_url }}
-              style={styles.topAvatar}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={styles.topAvatarFallback}>
-              <Text style={styles.topAvatarInitial}>{initial}</Text>
+            <View style={styles.counterpartAvatarContainer}>
+              {counterpart?.avatar_url ? (
+                <Image
+                  source={{ uri: counterpart.avatar_url }}
+                  style={styles.topAvatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.topAvatarFallback}>
+                  <Text style={styles.topAvatarInitial}>{initial}</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        <View style={styles.topBarInfo}>
-          <Text style={styles.topBarName} numberOfLines={1}>
-            {counterpart?.full_name || 'Warga Komplek'}
-          </Text>
-          {counterpart?.block && (
-            <Text style={styles.topBarBlock} numberOfLines={1}>
-              {counterpart.block}
-            </Text>
-          )}
-        </View>
-      </View>
-
-      {/* Persistent Listing Context Card */}
-      {listingContext && (
-        <View style={styles.contextCard}>
-          <View style={styles.contextCardContent}>
-            {listingContext.images?.[0]?.storage_path || listingContext.images?.[0]?.image_url ? (
-              <Image
-                source={{ uri: (listingContext.images[0].storage_path || listingContext.images[0].image_url)! }}
-                style={styles.contextCardImage}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={styles.contextCardImageFallback}>
-                <Bag size={20} color={Colors.stone[400]} />
-              </View>
-            )}
-            <View style={styles.contextCardInfo}>
-              <Text style={styles.contextCardTitle} numberOfLines={1}>
-                {listingContext.name}
+            <View style={styles.topBarInfo}>
+              <Text style={styles.topBarName} numberOfLines={1}>
+                {counterpart?.full_name || 'Warga Komplek'}
               </Text>
-              <Text style={styles.contextCardPrice}>
-                {formatRupiah(listingContext.price)}
-              </Text>
+              {counterpart?.block && (
+                <Text style={styles.topBarBlock} numberOfLines={1}>
+                  {counterpart.block}
+                </Text>
+              )}
             </View>
           </View>
+        )}
+
+        {/* Persistent Listing Context Card */}
+        {listingContext && (
+          <View style={[styles.contextCard, isDesktop && styles.desktopContextCard]}>
+            <View style={styles.contextCardContent}>
+              {listingContext.images?.[0]?.storage_path || listingContext.images?.[0]?.image_url ? (
+                <Image
+                  source={{ uri: (listingContext.images[0].storage_path || listingContext.images[0].image_url)! }}
+                  style={styles.contextCardImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.contextCardImageFallback}>
+                  <Bag size={20} color={Colors.stone[400]} />
+                </View>
+              )}
+              <View style={styles.contextCardInfo}>
+                <Text style={styles.contextCardTitle} numberOfLines={1}>
+                  {listingContext.name}
+                </Text>
+                <Text style={styles.contextCardPrice}>
+                  {formatRupiah(listingContext.price)}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.contextCardAction}
+              onPress={() => router.push(`/product/${listingContext.id}` as any)}
+            >
+              <Text style={styles.contextCardActionText}>Lihat listing</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Messages List */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessageBubble}
+          contentContainerStyle={[
+            styles.messageListContent,
+            isDesktop && styles.desktopMessageList,
+            { paddingBottom: Spacing[4] },
+          ]}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          onLayout={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+        />
+
+        {/* Quick replies */}
+        {showQuickReplies && (
+          <View style={[styles.quickRepliesContainer, isDesktop && styles.desktopQuickReplies]}>
+            {['Masih ada?', 'Bisa COD?', 'Nego bisa?'].map((qr) => (
+              <TouchableOpacity
+                key={qr}
+                style={styles.quickReplyChip}
+                onPress={() => handleQuickReply(qr)}
+              >
+                <Text style={styles.quickReplyText}>{qr}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Composer */}
+        <View style={[styles.composer, isDesktop && styles.desktopComposer, { paddingBottom: Math.max(isDesktop ? Spacing[2] : insets.bottom, Spacing[2]) }]}>
+          <TextInput
+            style={styles.composerInput}
+            placeholder="Tulis pesan..."
+            placeholderTextColor={Colors.stone[400]}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={1000}
+          />
           <TouchableOpacity
-            style={styles.contextCardAction}
-            onPress={() => router.push(`/product/${listingContext.id}` as any)}
+            style={[
+              styles.sendBtn,
+              (!inputText.trim() || sending) && styles.sendBtnDisabled,
+            ]}
+            disabled={!inputText.trim() || sending}
+            onPress={() => handleSend()}
           >
-            <Text style={styles.contextCardActionText}>Lihat listing</Text>
+            <PaperPlaneRight
+              size={18}
+              weight="fill"
+              color={inputText.trim() && !sending ? Colors.stone[0] : Colors.stone[400]}
+            />
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* Messages List */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessageBubble}
-        contentContainerStyle={[
-          styles.messageListContent,
-          { paddingBottom: Spacing[4] },
-        ]}
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
-        onLayout={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
-      />
-
-      {/* Quick replies */}
-      {showQuickReplies && (
-        <View style={styles.quickRepliesContainer}>
-          {['Masih ada?', 'Bisa COD?', 'Nego bisa?'].map((qr) => (
-            <TouchableOpacity
-              key={qr}
-              style={styles.quickReplyChip}
-              onPress={() => handleQuickReply(qr)}
-            >
-              <Text style={styles.quickReplyText}>{qr}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Composer */}
-      <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, Spacing[2]) }]}>
-        <TextInput
-          style={styles.composerInput}
-          placeholder="Tulis pesan..."
-          placeholderTextColor={Colors.stone[400]}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={1000}
-        />
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (!inputText.trim() || sending) && styles.sendBtnDisabled,
-          ]}
-          disabled={!inputText.trim() || sending}
-          onPress={() => handleSend()}
-        >
-          <PaperPlaneRight
-            size={18}
-            weight="fill"
-            color={inputText.trim() && !sending ? Colors.stone[0] : Colors.stone[400]}
-          />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </DesktopShell>
   );
 }
 
@@ -522,5 +533,31 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: Colors.stone[200],
+  },
+  desktopMessageList: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  desktopComposer: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+    borderRadius: Radius.lg,
+    marginBottom: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
+  },
+  desktopContextCard: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+    borderRadius: Radius.md,
+    marginTop: Spacing[2],
+  },
+  desktopQuickReplies: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
   },
 });

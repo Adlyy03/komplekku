@@ -30,11 +30,13 @@ import {
 import { formatTimeAgo } from '@/services/products';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { Notification } from '@/types/database';
 
 type NotificationFilter = 'all' | 'order' | 'chat' | 'announcement' | 'due' | 'complaint' | 'system';
 
 export default function NotificationsScreen() {
+  const isDesktop = useIsDesktop();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useSupabase();
@@ -190,78 +192,93 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarLeft}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            accessibilityLabel="Kembali"
-          >
-            <CaretLeft size={24} color={Colors.stone[800]} />
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>Notifikasi</Text>
-        </View>
-
-        {hasUnread && (
+    <DesktopShell
+      activeKey="/notifications"
+      pageTitle="Notifikasi"
+      breadcrumb={['Beranda', 'Notifikasi']}
+      headerAction={
+        hasUnread ? (
           <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn}>
             <Text style={styles.markAllText}>Tandai semua dibaca</Text>
           </TouchableOpacity>
+        ) : undefined
+      }
+    >
+      <View style={[styles.container, !isDesktop && { paddingTop: insets.top }]}>
+        {/* Top Bar */}
+        {!isDesktop && (
+          <View style={styles.topBar}>
+            <View style={styles.topBarLeft}>
+              <TouchableOpacity
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+                style={styles.backBtn}
+                accessibilityLabel="Kembali"
+              >
+                <CaretLeft size={24} color={Colors.stone[800]} />
+              </TouchableOpacity>
+              <Text style={styles.topBarTitle}>Notifikasi</Text>
+            </View>
+
+            {hasUnread && (
+              <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn}>
+                <Text style={styles.markAllText}>Tandai semua dibaca</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Filter Chips */}
+        <View style={[styles.filterWrapper, isDesktop && styles.desktopFilterWrapper]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+            {(
+              [
+                { key: 'all', label: 'Semua' },
+                { key: 'order', label: 'Pesanan' },
+                { key: 'chat', label: 'Chat' },
+                { key: 'system', label: 'Sistem' },
+              ] as { key: NotificationFilter; label: string }[]
+            ).map((chip) => {
+              const active = filter === chip.key;
+              return (
+                <TouchableOpacity
+                  key={chip.key}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => setFilter(chip.key)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {chip.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Content */}
+        {loading ? (
+          <LoadingState fullScreen={false} />
+        ) : filteredNotifications.length === 0 ? (
+          <EmptyState
+            title="Belum ada notifikasi"
+            description="Aktivitas pesanan, obrolan, dan informasi komplek akan tampil di sini."
+          />
+        ) : (
+          <FlatList
+            data={filteredNotifications}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={[styles.listContent, isDesktop && styles.desktopListContent]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary[600]}
+              />
+            }
+          />
         )}
       </View>
-
-      {/* Filter Chips */}
-      <View style={styles.filterWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {(
-            [
-              { key: 'all', label: 'Semua' },
-              { key: 'order', label: 'Pesanan' },
-              { key: 'chat', label: 'Chat' },
-              { key: 'system', label: 'Sistem' },
-            ] as { key: NotificationFilter; label: string }[]
-          ).map((chip) => {
-            const active = filter === chip.key;
-            return (
-              <TouchableOpacity
-                key={chip.key}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setFilter(chip.key)}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {chip.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Content */}
-      {loading ? (
-        <LoadingState fullScreen={false} />
-      ) : filteredNotifications.length === 0 ? (
-        <EmptyState
-          title="Belum ada notifikasi"
-          description="Aktivitas pesanan, obrolan, dan informasi komplek akan tampil di sini."
-        />
-      ) : (
-        <FlatList
-          data={filteredNotifications}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={Colors.primary[600]}
-            />
-          }
-        />
-      )}
-    </View>
+    </DesktopShell>
   );
 }
 
@@ -305,6 +322,11 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.stone[100],
     backgroundColor: Colors.stone[0],
   },
+  desktopFilterWrapper: {
+    maxWidth: 720,
+    alignSelf: 'center',
+    width: '100%',
+  },
   filterList: {
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[2],
@@ -333,6 +355,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing[8],
+  },
+  desktopListContent: {
+    maxWidth: 720,
+    alignSelf: 'center',
+    width: '100%',
+    paddingBottom: Spacing[10],
   },
   notificationRow: {
     flexDirection: 'row',

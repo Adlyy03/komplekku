@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +16,7 @@ import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { Button } from '@/components/ui/Button';
 import { useSupabase } from '@/lib/supabase-provider';
 import { formatRupiah, submitDuePayment, uploadPaymentProof } from '@/services/dues';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { DuePaymentMethod } from '@/types';
 
 /**
@@ -23,6 +24,7 @@ import type { DuePaymentMethod } from '@/types';
  * Manual payment proof submission with verification pipeline.
  */
 export default function PayDueScreen() {
+  const isDesktop = useIsDesktop();
   const params = useLocalSearchParams<{
     assignmentId: string;
     name?: string;
@@ -41,7 +43,7 @@ export default function PayDueScreen() {
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Izin Dibutuhkan', 'Mohon izinkan akses galeri untuk mengunggah bukti bayar.');
+      popup.warning('Izin Dibutuhkan', 'Mohon izinkan akses galeri untuk mengunggah bukti bayar.');
       return;
     }
 
@@ -58,12 +60,12 @@ export default function PayDueScreen() {
 
   const handleSubmit = async () => {
     if (!params.assignmentId || !user?.id) {
-      Alert.alert('Error', 'Data tagihan atau user tidak valid.');
+      popup.error('Error', 'Data tagihan atau user tidak valid.');
       return;
     }
 
     if (method === 'bank_transfer' && !imageUri) {
-      Alert.alert('Bukti Dibutuhkan', 'Silakan pilih foto struk / tangkapan layar bukti transfer.');
+      popup.warning('Bukti Dibutuhkan', 'Silakan pilih foto struk / tangkapan layar bukti transfer.');
       return;
     }
 
@@ -75,7 +77,7 @@ export default function PayDueScreen() {
       if (imageUri) {
         const uploadRes = await uploadPaymentProof(params.assignmentId, imageUri);
         if (uploadRes.error) {
-          Alert.alert('Gagal Unggah', uploadRes.error.message);
+          popup.error('Gagal Unggah', uploadRes.error.message);
           setSubmitting(false);
           return;
         }
@@ -92,9 +94,9 @@ export default function PayDueScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
-        Alert.alert(
+        popup.alert(
           'Bukti Pembayaran Terkirim',
           'Pembayaran Anda telah diajukan dan sedang menunggu verifikasi oleh pengurus RT/RW.',
           [
@@ -111,17 +113,28 @@ export default function PayDueScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Batal</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Konfirmasi Pembayaran</Text>
-      </View>
+    <DesktopShell
+      activeKey="/iuran"
+      pageTitle="Konfirmasi Pembayaran"
+      breadcrumb={['Iuran', 'Bayar']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/iuran' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Konfirmasi Pembayaran</Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
         {/* Bill Snapshot Card */}
         <View style={styles.billCard}>
           <Text style={styles.billTitle}>{params.name || 'Iuran Komplek'}</Text>
@@ -221,6 +234,7 @@ export default function PayDueScreen() {
         />
       </ScrollView>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -256,6 +270,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing[4],
     paddingBottom: Spacing[10],
+  },
+  desktopScrollContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   billCard: {
     backgroundColor: Colors.stone[0],

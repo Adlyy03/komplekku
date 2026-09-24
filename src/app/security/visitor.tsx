@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
@@ -33,8 +33,10 @@ import {
   checkOutVisitor,
   type VisitorPassWithDetails,
 } from '@/services/security';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function VisitorScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { isRw, isRt, isDeveloper } = useComplex();
   const isSecurityOrManager = isDeveloper || isRw || isRt;
@@ -76,36 +78,52 @@ export default function VisitorScreen() {
     setRefreshing(false);
   };
 
-  const handleCheckIn = async (passId: string) => {
+  const handleCheckIn = async (passId: string, guestName?: string) => {
     if (!user?.id) return;
-    setActionBusy(passId);
-    try {
-      const { error } = await checkInVisitor(passId, user.id);
-      if (error) {
-        Alert.alert('Gagal Check In', error.message);
-      } else {
-        Alert.alert('Sukses', 'Tamu berhasil diverifikasi & check-in masuk komplek.');
-        await loadData();
-      }
-    } finally {
-      setActionBusy(null);
-    }
+    popup.confirm({
+      title: 'Check-In Masuk',
+      message: `Konfirmasi check-in masuk untuk tamu ${guestName ? `"${guestName}"` : 'ini'}?`,
+      confirmText: 'Ya, Check-In',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        setActionBusy(passId);
+        try {
+          const { error } = await checkInVisitor(passId, user.id);
+          if (error) {
+            popup.error('Gagal Check In', error.message);
+          } else {
+            popup.success('Sukses', 'Tamu berhasil diverifikasi & check-in masuk komplek.');
+            await loadData();
+          }
+        } finally {
+          setActionBusy(null);
+        }
+      },
+    });
   };
 
-  const handleCheckOut = async (passId: string) => {
+  const handleCheckOut = async (passId: string, guestName?: string) => {
     if (!user?.id) return;
-    setActionBusy(passId);
-    try {
-      const { error } = await checkOutVisitor(passId, user.id);
-      if (error) {
-        Alert.alert('Gagal Check Out', error.message);
-      } else {
-        Alert.alert('Sukses', 'Tamu telah keluar komplek (check-out).');
-        await loadData();
-      }
-    } finally {
-      setActionBusy(null);
-    }
+    popup.confirm({
+      title: 'Check-Out Keluar',
+      message: `Konfirmasi check-out keluar untuk tamu ${guestName ? `"${guestName}"` : 'ini'}?`,
+      confirmText: 'Ya, Check-Out',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        setActionBusy(passId);
+        try {
+          const { error } = await checkOutVisitor(passId, user.id);
+          if (error) {
+            popup.error('Gagal Check Out', error.message);
+          } else {
+            popup.success('Sukses', 'Tamu telah keluar komplek (check-out).');
+            await loadData();
+          }
+        } finally {
+          setActionBusy(null);
+        }
+      },
+    });
   };
 
   const renderStatusBadge = (status: string) => {
@@ -135,34 +153,51 @@ export default function VisitorScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
+    <DesktopShell
+      activeKey="/security/visitor"
+      pageTitle="Buku Tamu Digital"
+      breadcrumb={['Keamanan', 'Buku Tamu']}
+      headerAction={
         <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
-          hitSlop={8}
-          style={styles.backButton}
+          style={styles.createBtn}
+          onPress={() => router.push('/security/create-visitor' as any)}
         >
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
+          <PlusCircle size={18} color="#FFFFFF" weight="bold" />
+          <Text style={styles.createBtnText}>Buat Izin Masuk</Text>
         </TouchableOpacity>
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
 
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Buku Tamu Digital</Text>
-            <Text style={styles.subtitle}>
-              Izin tamu komplek dengan kode akses pos satpam.
-            </Text>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.title}>Buku Tamu Digital</Text>
+                <Text style={styles.subtitle}>
+                  Izin tamu komplek dengan kode akses pos satpam.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.createBtn}
+                onPress={() => router.push('/security/create-visitor' as any)}
+              >
+                <PlusCircle size={18} color="#FFFFFF" weight="bold" />
+                <Text style={styles.createBtnText}>Buat Izin</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <TouchableOpacity
-            style={styles.createBtn}
-            onPress={() => router.push('/security/create-visitor' as any)}
-          >
-            <PlusCircle size={18} color="#FFFFFF" weight="bold" />
-            <Text style={styles.createBtnText}>Buat Izin</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Tab switch for Security / Managers */}
         {isSecurityOrManager && (
@@ -196,7 +231,6 @@ export default function VisitorScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
 
       {/* Main Content */}
       {loading ? (
@@ -277,7 +311,7 @@ export default function VisitorScreen() {
                       {p.status === 'expected' && (
                         <TouchableOpacity
                           style={[styles.checkInBtn, isBusy && styles.btnDisabled]}
-                          onPress={() => handleCheckIn(p.id)}
+                          onPress={() => handleCheckIn(p.id, p.guest_name)}
                           disabled={isBusy}
                         >
                           <SignIn size={16} color="#FFFFFF" weight="bold" />
@@ -288,7 +322,7 @@ export default function VisitorScreen() {
                       {p.status === 'checked_in' && (
                         <TouchableOpacity
                           style={[styles.checkOutBtn, isBusy && styles.btnDisabled]}
-                          onPress={() => handleCheckOut(p.id)}
+                          onPress={() => handleCheckOut(p.id, p.guest_name)}
                           disabled={isBusy}
                         >
                           <SignOut size={16} color="#FFFFFF" weight="bold" />
@@ -304,6 +338,7 @@ export default function VisitorScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 

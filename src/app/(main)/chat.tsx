@@ -19,8 +19,10 @@ import { getUserConversations, ConversationListItem } from '@/services/chat';
 import { formatTimeAgo } from '@/services/products';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function ChatListScreen() {
+  const isDesktop = useIsDesktop();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useSupabase();
@@ -122,55 +124,63 @@ export default function ChatListScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Pesan</Text>
-          {complexSettings?.name && (
-            <Text style={styles.communitySub}>{complexSettings.name}</Text>
-          )}
-        </View>
-      </View>
+    <DesktopShell
+      activeKey="/chat"
+      pageTitle="Pesan & Percakapan"
+      breadcrumb={['Pesan']}
+    >
+      <View style={[styles.container, !isDesktop && { paddingTop: insets.top }]}>
+        {/* Top Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.headerTitle}>Pesan</Text>
+              {complexSettings?.name && (
+                <Text style={styles.communitySub}>{complexSettings.name}</Text>
+              )}
+            </View>
+          </View>
+        )}
 
-      {/* Search bar */}
-      <View style={styles.searchWrapper}>
-        <View style={styles.searchContainer}>
-          <MagnifyingGlass size={18} color={Colors.stone[400]} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari percakapan..."
-            placeholderTextColor={Colors.stone[400]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </View>
-
-      {/* List / States */}
-      {loading ? (
-        <LoadingState fullScreen={false} />
-      ) : filteredConversations.length === 0 ? (
-        <EmptyState
-          title="Belum ada percakapan"
-          description="Mulai chat dari halaman Marketplace atau rincian pesanan."
-        />
-      ) : (
-        <FlatList
-          data={filteredConversations}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={Colors.primary[600]}
+        {/* Search bar */}
+        <View style={[styles.searchWrapper, isDesktop && styles.desktopSearchWrapper]}>
+          <View style={styles.searchContainer}>
+            <MagnifyingGlass size={18} color={Colors.stone[400]} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Cari percakapan..."
+              placeholderTextColor={Colors.stone[400]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
-          }
-        />
-      )}
-    </View>
+          </View>
+        </View>
+
+        {/* List / States */}
+        {loading ? (
+          <LoadingState fullScreen={false} />
+        ) : filteredConversations.length === 0 ? (
+          <EmptyState
+            title="Belum ada percakapan"
+            description="Mulai chat dari halaman Marketplace atau rincian pesanan."
+          />
+        ) : (
+          <FlatList
+            data={filteredConversations}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={[styles.listContent, isDesktop && styles.desktopListContent]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary[600]}
+              />
+            }
+          />
+        )}
+      </View>
+    </DesktopShell>
   );
 }
 
@@ -197,6 +207,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[2],
   },
+  desktopSearchWrapper: {
+    maxWidth: 720,
+    alignSelf: 'center',
+    width: '100%',
+    paddingTop: Spacing[4],
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,6 +232,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing[8],
+  },
+  desktopListContent: {
+    maxWidth: 720,
+    alignSelf: 'center',
+    width: '100%',
+    paddingBottom: Spacing[10],
   },
   chatRow: {
     flexDirection: 'row',

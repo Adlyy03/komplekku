@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   ScrollView,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { Image } from 'expo-image';
 import { X, CheckCircle, XCircle, Receipt, House, Calendar, CurrencyCircleDollar } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
@@ -89,9 +89,9 @@ export function PaymentVerifyModal({
       });
 
       if (error) {
-        Alert.alert('Gagal Memverifikasi', error.message);
+        popup.error('Gagal Memverifikasi', error.message);
       } else {
-        Alert.alert('Sukses', 'Pembayaran telah diverifikasi Lunas.');
+        popup.success('Sukses', 'Pembayaran telah diverifikasi Lunas.');
         onSuccess();
         onClose();
       }
@@ -108,7 +108,7 @@ export function PaymentVerifyModal({
     }
 
     if (!rejectionReason.trim()) {
-      Alert.alert('Alasan Penolakan', 'Mohon isi alasan mengapa pembayaran ditolak.');
+      popup.warning('Alasan Penolakan', 'Mohon isi alasan mengapa pembayaran ditolak.');
       return;
     }
 
@@ -123,9 +123,9 @@ export function PaymentVerifyModal({
       });
 
       if (error) {
-        Alert.alert('Gagal Menolak', error.message);
+        popup.error('Gagal Menolak', error.message);
       } else {
-        Alert.alert('Sukses', 'Pembayaran telah ditolak.');
+        popup.success('Sukses', 'Pembayaran telah ditolak.');
         onSuccess();
         onClose();
       }

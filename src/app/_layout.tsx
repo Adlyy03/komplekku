@@ -14,12 +14,12 @@ import {
 import { SupabaseProvider, useSupabase } from '@/lib/supabase-provider';
 import { ComplexProvider } from '@/lib/complex-provider';
 import { CartProvider } from '@/lib/cart-provider';
-import {
-  registerForPushNotificationsAsync,
+import { registerForPushNotificationsAsync,
   handleNotificationRoute,
   addNotificationResponseListener,
 } from '@/lib/push-notifications';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { PopupModal } from '@/components/ui/PopupModal';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -46,6 +46,7 @@ function AppNotificationManager({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OfflineBanner />
+      <PopupModal />
       {children}
     </>
   );

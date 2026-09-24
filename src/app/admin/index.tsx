@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   RefreshControl,
   Modal,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -26,11 +26,13 @@ import {
   X,
   UserCheck,
   Users,
+  ArrowClockwise,
 } from 'phosphor-react-native';
 import { Colors, Typography, Spacing, Radius, FontFamily } from '@/constants/theme';
 import type { UserRole } from '@/types/database';
 import { useSupabase } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import {
   checkIsAdmin,
   getAdminOverview,
@@ -55,6 +57,7 @@ import { Button } from '@/components/ui/Button';
 type AdminTab = 'overview' | 'members' | 'sellers' | 'products' | 'orders' | 'settings';
 
 export default function AdminDashboardScreen() {
+  const isDesktop = useIsDesktop();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useSupabase();
@@ -179,9 +182,9 @@ export default function AdminDashboardScreen() {
     setSavingRole(false);
 
     if (error) {
-      Alert.alert('Gagal Mengubah Peran', error.message);
+      popup.error('Gagal Mengubah Peran', error.message);
     } else {
-      Alert.alert('Sukses', `Peran ${selectedMemberForRole.full_name} berhasil diubah menjadi ${targetRole.toUpperCase()}`);
+      popup.success('Sukses', `Peran ${selectedMemberForRole.full_name} berhasil diubah menjadi ${targetRole.toUpperCase()}`);
       setMembers((prev) =>
         prev.map((m) =>
           m.id === selectedMemberForRole.id ? { ...m, role: targetRole } : m
@@ -193,119 +196,102 @@ export default function AdminDashboardScreen() {
 
   const handleVerifyMember = async (member: CommunityMemberWithProfile) => {
     if (!user) return;
-    Alert.alert(
-      'Verifikasi Warga',
-      `Verifikasi warga ${member.full_name || 'ini'} dan setujui status huniannya?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Ya, Verifikasi',
-          onPress: async () => {
-            const { error } = await updateMemberStatus(member.id, {
-              actorId: user.id,
-              actorRole: activeRole,
-              verification_status: 'verified',
-              resident_status: 'active',
-            });
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              Alert.alert('Sukses', 'Warga berhasil diverifikasi.');
-              setMembers((prev) =>
-                prev.map((m) =>
-                  m.id === member.id
-                    ? { ...m, verification_status: 'verified', resident_status: 'active' }
-                    : m
-                )
-              );
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: 'Verifikasi Warga',
+      message: `Verifikasi warga ${member.full_name || 'ini'} dan setujui status huniannya?`,
+      confirmText: 'Ya, Verifikasi',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        const { error } = await updateMemberStatus(member.id, {
+          actorId: user.id,
+          actorRole: activeRole,
+          verification_status: 'verified',
+          resident_status: 'active',
+        });
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          popup.success('Sukses', 'Warga berhasil diverifikasi.');
+          setMembers((prev) =>
+            prev.map((m) =>
+              m.id === member.id
+                ? { ...m, verification_status: 'verified', resident_status: 'active' }
+                : m
+            )
+          );
+        }
+      },
+    });
   };
 
   const handleToggleMemberStatus = async (member: CommunityMemberWithProfile) => {
     if (!user) return;
     const isCurrentlyBlocked = member.resident_status === 'blocked';
     const nextStatus = isCurrentlyBlocked ? 'active' : 'blocked';
-    Alert.alert(
-      isCurrentlyBlocked ? 'Buka Blokir Warga' : 'Blokir Warga',
-      `Apakah Anda yakin ingin ${isCurrentlyBlocked ? 'membuka blokir' : 'memblokir'} ${member.full_name || 'warga'}?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Konfirmasi',
-          style: isCurrentlyBlocked ? 'default' : 'destructive',
-          onPress: async () => {
-            const { error } = await updateMemberStatus(member.id, {
-              actorId: user.id,
-              actorRole: activeRole,
-              resident_status: nextStatus,
-            });
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              setMembers((prev) =>
-                prev.map((m) => (m.id === member.id ? { ...m, resident_status: nextStatus } : m))
-              );
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: isCurrentlyBlocked ? 'Buka Blokir Warga' : 'Blokir Warga',
+      message: `Apakah Anda yakin ingin ${isCurrentlyBlocked ? 'membuka blokir' : 'memblokir'} ${member.full_name || 'warga'}?`,
+      confirmText: isCurrentlyBlocked ? 'Buka Blokir' : 'Blokir',
+      destructive: !isCurrentlyBlocked,
+      onConfirm: async () => {
+        const { error } = await updateMemberStatus(member.id, {
+          actorId: user.id,
+          actorRole: activeRole,
+          resident_status: nextStatus,
+        });
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          popup.success('Sukses', `Status warga berhasil diubah.`);
+          setMembers((prev) =>
+            prev.map((m) => (m.id === member.id ? { ...m, resident_status: nextStatus } : m))
+          );
+        }
+      },
+    });
   };
 
   const handleToggleSellerStatus = async (seller: SellerWithUser) => {
     const isCurrentlyActive = seller.status === 'active';
     const nextStatus = isCurrentlyActive ? 'blocked' : 'active';
-    Alert.alert(
-      isCurrentlyActive ? 'Blokir Penjual' : 'Aktifkan Penjual',
-      `Apakah Anda yakin ingin ${isCurrentlyActive ? 'memblokir toko' : 'mengaktifkan kembali toko'} "${seller.store_name}"?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Konfirmasi',
-          style: isCurrentlyActive ? 'destructive' : 'default',
-          onPress: async () => {
-            const { error } = await updateSellerStatus(seller.id, nextStatus);
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              Alert.alert('Sukses', `Toko "${seller.store_name}" berhasil di-${nextStatus === 'blocked' ? 'blokir' : 'aktifkan'}.`);
-              setSellers((prev) =>
-                prev.map((s) => (s.id === seller.id ? { ...s, status: nextStatus } : s))
-              );
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: isCurrentlyActive ? 'Blokir Penjual' : 'Aktifkan Penjual',
+      message: `Apakah Anda yakin ingin ${isCurrentlyActive ? 'memblokir toko' : 'mengaktifkan kembali toko'} "${seller.store_name}"?`,
+      confirmText: isCurrentlyActive ? 'Blokir' : 'Aktifkan',
+      destructive: isCurrentlyActive,
+      onConfirm: async () => {
+        const { error } = await updateSellerStatus(seller.id, nextStatus);
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          popup.success('Sukses', `Toko "${seller.store_name}" berhasil di-${nextStatus === 'blocked' ? 'blokir' : 'aktifkan'}.`);
+          setSellers((prev) =>
+            prev.map((s) => (s.id === seller.id ? { ...s, status: nextStatus } : s))
+          );
+        }
+      },
+    });
   };
 
   const handleModerateProduct = async (product: ProductWithSellerAdmin, status: 'active' | 'inactive') => {
     const isDeactivating = status === 'inactive';
-    Alert.alert(
-      isDeactivating ? 'Nonaktifkan Produk' : 'Aktifkan Produk',
-      `Apakah Anda yakin ingin ${isDeactivating ? 'menonaktifkan' : 'mengaktifkan'} produk "${product.name}"?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Konfirmasi',
-          style: isDeactivating ? 'destructive' : 'default',
-          onPress: async () => {
-            const { error } = await moderateProduct(product.id, status);
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              setProducts((prev) =>
-                prev.map((p) => (p.id === product.id ? { ...p, status } : p))
-              );
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: isDeactivating ? 'Nonaktifkan Produk' : 'Aktifkan Produk',
+      message: `Apakah Anda yakin ingin ${isDeactivating ? 'menonaktifkan' : 'mengaktifkan'} produk "${product.name}"?`,
+      confirmText: isDeactivating ? 'Nonaktifkan' : 'Aktifkan',
+      destructive: isDeactivating,
+      onConfirm: async () => {
+        const { error } = await moderateProduct(product.id, status);
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          popup.success('Sukses', `Produk berhasil di-${status === 'inactive' ? 'nonaktifkan' : 'aktifkan'}.`);
+          setProducts((prev) =>
+            prev.map((p) => (p.id === product.id ? { ...p, status } : p))
+          );
+        }
+      },
+    });
   };
 
   const handleSaveSettings = async () => {
@@ -317,9 +303,9 @@ export default function AdminDashboardScreen() {
     });
     setSavingSettings(false);
     if (error) {
-      Alert.alert('Gagal', error.message);
+      popup.error('Gagal', error.message);
     } else {
-      Alert.alert('Sukses', 'Informasi komplek berhasil diperbarui.');
+      popup.success('Sukses', 'Informasi komplek berhasil diperbarui.');
     }
   };
 
@@ -375,66 +361,105 @@ export default function AdminDashboardScreen() {
     );
   }
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        {router.canGoBack() && (
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            accessibilityLabel="Kembali"
-          >
-            <CaretLeft size={24} color={Colors.stone[800]} />
-          </TouchableOpacity>
-        )}
-        <View>
-          <Text style={styles.topBarTitle}>
-            {isDeveloper
-              ? 'Panel Pengelola Komplek'
-              : isRw
-              ? `Panel Pengurus RW ${household?.rw?.code || ''}`
-              : `Panel Pengurus RT ${household?.rt?.code || ''}`}
-          </Text>
-          <Text style={styles.topBarSub}>
-            {complexSettings?.name || 'Komplekku'} • Scope: {activeRole.toUpperCase()}
-          </Text>
+  const desktopHeaderAction = (
+    <TouchableOpacity
+      style={styles.desktopRefreshBtn}
+      onPress={onRefresh}
+      disabled={refreshing}
+    >
+      <ArrowClockwise size={16} color={Colors.stone[700]} />
+      <Text style={styles.desktopRefreshBtnText}>
+        {refreshing ? 'Memuat...' : 'Segarkan Data'}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const renderRoleModal = () => (
+    <Modal
+      visible={roleModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setRoleModalVisible(false)}
+    >
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Kelola Peran Warga</Text>
+              <Text style={styles.modalSub}>
+                {selectedMemberForRole?.full_name || 'Warga'} (Saat ini:{' '}
+                {selectedMemberForRole?.role?.toUpperCase()})
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setRoleModalVisible(false)}
+              hitSlop={8}
+              style={styles.modalCloseBtn}
+            >
+              <X size={20} color={Colors.stone[600]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.roleOptionsList}>
+            {assignableRoles.map((role) => {
+              const isCurrent = selectedMemberForRole?.role === role;
+              const roleLabel =
+                role === 'developer'
+                  ? 'Pengelola Master (Developer)'
+                  : role === 'rw'
+                  ? 'Pengurus RW'
+                  : role === 'rt'
+                  ? 'Pengurus RT'
+                  : 'Warga Residen';
+              const roleColor =
+                role === 'developer'
+                  ? '#6D28D9'
+                  : role === 'rw'
+                  ? '#047857'
+                  : role === 'rt'
+                  ? '#0F766E'
+                  : Colors.stone[700];
+
+              return (
+                <TouchableOpacity
+                  key={role}
+                  style={[styles.roleOptionCard, isCurrent && styles.roleOptionCardActive]}
+                  onPress={() => handleSelectNewRole(role)}
+                  disabled={savingRole}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roleOptionTitle, { color: roleColor }]}>
+                      {roleLabel}
+                    </Text>
+                    <Text style={styles.roleOptionDesc}>
+                      {role === 'developer'
+                        ? 'Akses penuh ke seluruh pengaturan instance komplek, moderasi toko, dan struktur wilayah.'
+                        : role === 'rw'
+                        ? 'Mengelola dan memonitor data operasional seluruh RT dalam wilayah RW.'
+                        : role === 'rt'
+                        ? 'Operasional warga, verifikasi bukti bayar iuran, dan keluhan warga RT.'
+                        : 'Akses warga residen biasa untuk iuran, keluhan lingkungan, dan pasar komplek.'}
+                    </Text>
+                  </View>
+                  {isCurrent && (
+                    <View style={styles.currentRoleBadge}>
+                      <Text style={styles.currentRoleBadgeText}>Aktif</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       </View>
+    </Modal>
+  );
 
-      {/* Tabs */}
-      <View style={styles.tabBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
-          {availableTabs.map((t) => {
-            const active = activeTab === t.key;
-            return (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.tabItem, active && styles.tabItemActive]}
-                onPress={() => setActiveTab(t.key as AdminTab)}
-              >
-                <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                  {t.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Content Area */}
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary[600]}
-          />
-        }
-      >
-        {/* OVERVIEW TAB */}
-        {activeTab === 'overview' && (
+  const renderTabContent = () => (
+    <>
+      {/* OVERVIEW TAB */}
+      {activeTab === 'overview' && (
           <View style={styles.overviewContainer}>
             {/* Scoped Metric Cards */}
             <View style={styles.statsGrid}>
@@ -1041,88 +1066,143 @@ export default function AdminDashboardScreen() {
             />
           </View>
         )}
-      </ScrollView>
+    </>
+  );
 
-      {/* Role Management Modal (Phase 2) */}
-      <Modal
-        visible={roleModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRoleModalVisible(false)}
+  if (isDesktop) {
+    return (
+      <DesktopShell
+        activeKey="/admin"
+        pageTitle={
+          isDeveloper
+            ? 'Panel Pengelola Komplek'
+            : isRw
+            ? `Panel Pengurus RW ${household?.rw?.code || ''}`
+            : `Panel Pengurus RT ${household?.rt?.code || ''}`
+        }
+        breadcrumb={[
+          'Dashboard',
+          'Manajemen',
+          availableTabs.find((t) => t.key === activeTab)?.label || 'Ringkasan',
+        ]}
+        headerAction={desktopHeaderAction}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Kelola Peran Warga</Text>
-                <Text style={styles.modalSub}>
-                  {selectedMemberForRole?.full_name || 'Warga'} (Saat ini:{' '}
-                  {selectedMemberForRole?.role?.toUpperCase()})
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setRoleModalVisible(false)}
-                hitSlop={8}
-                style={styles.modalCloseBtn}
-              >
-                <X size={20} color={Colors.stone[600]} />
-              </TouchableOpacity>
+        <View style={styles.desktopContainer}>
+          {/* Header strip & tab switcher */}
+          <View style={styles.desktopHeaderStrip}>
+            <View>
+              <Text style={styles.desktopPageTitle}>
+                {availableTabs.find((t) => t.key === activeTab)?.label || 'Ringkasan'}
+              </Text>
+              <Text style={styles.desktopPageSubtitle}>
+                {complexSettings?.name || 'Komplekku'} • Scope: {activeRole.toUpperCase()}
+              </Text>
             </View>
 
-            <View style={styles.roleOptionsList}>
-              {assignableRoles.map((role) => {
-                const isCurrent = selectedMemberForRole?.role === role;
-                const roleLabel =
-                  role === 'developer'
-                    ? 'Pengelola Master (Developer)'
-                    : role === 'rw'
-                    ? 'Pengurus RW'
-                    : role === 'rt'
-                    ? 'Pengurus RT'
-                    : 'Warga Residen';
-                const roleColor =
-                  role === 'developer'
-                    ? '#6D28D9'
-                    : role === 'rw'
-                    ? '#047857'
-                    : role === 'rt'
-                    ? '#0F766E'
-                    : Colors.stone[700];
-
+            <View style={styles.desktopTabSwitcher}>
+              {availableTabs.map((t) => {
+                const active = activeTab === t.key;
                 return (
                   <TouchableOpacity
-                    key={role}
-                    style={[styles.roleOptionCard, isCurrent && styles.roleOptionCardActive]}
-                    onPress={() => handleSelectNewRole(role)}
-                    disabled={savingRole}
-                    activeOpacity={0.7}
+                    key={t.key}
+                    style={[styles.desktopSwitchBtn, active && styles.desktopSwitchBtnActive]}
+                    onPress={() => setActiveTab(t.key as AdminTab)}
                   >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.roleOptionTitle, { color: roleColor }]}>
-                        {roleLabel}
-                      </Text>
-                      <Text style={styles.roleOptionDesc}>
-                        {role === 'developer'
-                          ? 'Akses penuh ke seluruh pengaturan instance komplek, moderasi toko, dan struktur wilayah.'
-                          : role === 'rw'
-                          ? 'Mengelola dan memonitor data operasional seluruh RT dalam wilayah RW.'
-                          : role === 'rt'
-                          ? 'Operasional warga, verifikasi bukti bayar iuran, dan keluhan warga RT.'
-                          : 'Akses warga residen biasa untuk iuran, keluhan lingkungan, dan pasar komplek.'}
-                      </Text>
-                    </View>
-                    {isCurrent && (
-                      <View style={styles.currentRoleBadge}>
-                        <Text style={styles.currentRoleBadgeText}>Aktif</Text>
-                      </View>
-                    )}
+                    <Text
+                      style={[
+                        styles.desktopSwitchBtnText,
+                        active && styles.desktopSwitchBtnTextActive,
+                      ]}
+                    >
+                      {t.label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
+
+          <ScrollView
+            contentContainerStyle={styles.desktopScrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary[600]}
+              />
+            }
+          >
+            {renderTabContent()}
+          </ScrollView>
         </View>
-      </Modal>
+
+        {renderRoleModal()}
+      </DesktopShell>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        {router.canGoBack() && (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            accessibilityLabel="Kembali"
+          >
+            <CaretLeft size={24} color={Colors.stone[800]} />
+          </TouchableOpacity>
+        )}
+        <View>
+          <Text style={styles.topBarTitle}>
+            {isDeveloper
+              ? 'Panel Pengelola Komplek'
+              : isRw
+              ? `Panel Pengurus RW ${household?.rw?.code || ''}`
+              : `Panel Pengurus RT ${household?.rt?.code || ''}`}
+          </Text>
+          <Text style={styles.topBarSub}>
+            {complexSettings?.name || 'Komplekku'} • Scope: {activeRole.toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+          {availableTabs.map((t) => {
+            const active = activeTab === t.key;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.tabItem, active && styles.tabItemActive]}
+                onPress={() => setActiveTab(t.key as AdminTab)}
+              >
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Content Area */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary[600]}
+          />
+        }
+      >
+        {renderTabContent()}
+      </ScrollView>
+
+      {renderRoleModal()}
     </View>
   );
 }
@@ -1131,6 +1211,78 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.stone[0],
+  },
+  desktopContainer: {
+    flex: 1,
+    padding: Spacing[6],
+    backgroundColor: Colors.stone[25],
+  },
+  desktopRefreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 7,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
+    backgroundColor: Colors.stone[0],
+  },
+  desktopRefreshBtnText: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: 12,
+    color: Colors.stone[700],
+    fontWeight: '600',
+  },
+  desktopHeaderStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[5],
+  },
+  desktopPageTitle: {
+    fontFamily: FontFamily.display,
+    fontSize: 22,
+    color: Colors.stone[800],
+    fontWeight: '700',
+  },
+  desktopPageSubtitle: {
+    fontFamily: FontFamily.body,
+    fontSize: 13,
+    color: Colors.stone[500],
+    marginTop: 2,
+  },
+  desktopTabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: Colors.stone[100],
+    borderRadius: Radius.sm,
+    padding: 3,
+    gap: 2,
+  },
+  desktopSwitchBtn: {
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 7,
+    borderRadius: Radius.xs,
+  },
+  desktopSwitchBtnActive: {
+    backgroundColor: Colors.stone[0],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  desktopSwitchBtnText: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: 12,
+    color: Colors.stone[500],
+  },
+  desktopSwitchBtnTextActive: {
+    color: Colors.primary[700],
+    fontWeight: '700',
+  },
+  desktopScrollContent: {
+    paddingBottom: Spacing[10],
   },
   centerContent: {
     alignItems: 'center',

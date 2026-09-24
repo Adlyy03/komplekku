@@ -32,9 +32,11 @@ import {
   formatCurrency,
   type FinancialSummary,
 } from '@/services/finance';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { Expense, ExpenseCategory } from '@/types/database';
 
 export default function FinanceScreen() {
+  const isDesktop = useIsDesktop();
   const { activeRole } = useComplex();
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
 
@@ -111,33 +113,51 @@ export default function FinanceScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
-          hitSlop={8}
-          style={styles.backButton}
-        >
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Transparansi Keuangan</Text>
-            <Text style={styles.subtitle}>Buku kas digital komplek terbuka untuk seluruh warga.</Text>
-          </View>
-          {isManager && (
+    <DesktopShell
+      activeKey="/finance"
+      pageTitle="Transparansi Keuangan Komplek"
+      breadcrumb={['Keuangan', 'Buku Kas']}
+      headerAction={
+        isManager ? (
+          <TouchableOpacity
+            style={styles.addExpenseBtn}
+            onPress={() => router.push('/finance/create' as any)}
+          >
+            <PlusCircle size={18} color="#FFFFFF" weight="bold" />
+            <Text style={styles.addExpenseBtnText}>Catat Pengeluaran</Text>
+          </TouchableOpacity>
+        ) : undefined
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
             <TouchableOpacity
-              style={styles.addExpenseBtn}
-              onPress={() => router.push('/finance/create' as any)}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+              hitSlop={8}
+              style={styles.backButton}
             >
-              <PlusCircle size={18} color="#FFFFFF" weight="bold" />
-              <Text style={styles.addExpenseBtnText}>Catat</Text>
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.title}>Transparansi Keuangan</Text>
+                <Text style={styles.subtitle}>Buku kas digital komplek terbuka untuk seluruh warga.</Text>
+              </View>
+              {isManager && (
+                <TouchableOpacity
+                  style={styles.addExpenseBtn}
+                  onPress={() => router.push('/finance/create' as any)}
+                >
+                  <PlusCircle size={18} color="#FFFFFF" weight="bold" />
+                  <Text style={styles.addExpenseBtnText}>Catat</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
       {loading ? (
         <View style={styles.centered}>
@@ -289,6 +309,7 @@ export default function FinanceScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 

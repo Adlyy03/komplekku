@@ -6,9 +6,9 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft, CheckCircle } from 'phosphor-react-native';
@@ -16,9 +16,11 @@ import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { createExpense } from '@/services/finance';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { ExpenseCategory } from '@/types/database';
 
 export default function CreateExpenseScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { activeRole } = useComplex();
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
@@ -44,23 +46,23 @@ export default function CreateExpenseScreen() {
 
   const handleSubmit = async () => {
     if (!user?.id || !isManager) {
-      Alert.alert('Akses Ditolak', 'Hanya pengurus yang berwenang mencatat pengeluaran kas.');
+      popup.error('Akses Ditolak', 'Hanya pengurus yang berwenang mencatat pengeluaran kas.');
       return;
     }
 
     if (!title.trim()) {
-      Alert.alert('Validasi Gagal', 'Mohon isi judul pengeluaran.');
+      popup.warning('Validasi Gagal', 'Mohon isi judul pengeluaran.');
       return;
     }
 
     const amount = Number(amountStr);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Validasi Gagal', 'Nominal pengeluaran harus lebih besar dari 0.');
+      popup.warning('Validasi Gagal', 'Nominal pengeluaran harus lebih besar dari 0.');
       return;
     }
 
     if (!expenseDate.trim()) {
-      Alert.alert('Validasi Gagal', 'Mohon isi tanggal pengeluaran (YYYY-MM-DD).');
+      popup.warning('Validasi Gagal', 'Mohon isi tanggal pengeluaran (YYYY-MM-DD).');
       return;
     }
 
@@ -76,9 +78,9 @@ export default function CreateExpenseScreen() {
       });
 
       if (error || !data) {
-        Alert.alert('Gagal Menyimpan', error?.message || 'Terjadi kesalahan sistem.');
+        popup.error('Gagal Menyimpan', error?.message || 'Terjadi kesalahan sistem.');
       } else {
-        Alert.alert(
+        popup.alert(
           'Sukses',
           'Catatan pengeluaran berhasil disimpan ke buku kas komplek.',
           [{ text: 'Selesai', onPress: () => router.back() }]
@@ -104,20 +106,31 @@ export default function CreateExpenseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Catat Pengeluaran Kas</Text>
-        <Text style={styles.subtitle}>
-          Setiap pengeluaran kas komplek akan tercatat transparan untuk seluruh warga.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/finance"
+      pageTitle="Catat Pengeluaran Kas"
+      breadcrumb={['Keuangan', 'Buku Kas', 'Catat Pengeluaran']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/finance' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Catat Pengeluaran Kas</Text>
+            <Text style={styles.subtitle}>
+              Setiap pengeluaran kas komplek akan tercatat transparan untuk seluruh warga.
+            </Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Judul Pengeluaran</Text>
@@ -207,7 +220,8 @@ export default function CreateExpenseScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -349,5 +363,11 @@ const styles = StyleSheet.create({
   backBtnText: {
     ...Typography.label,
     color: Colors.stone[800],
+  },
+  desktopContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

@@ -22,6 +22,7 @@ import { getComplaints, type ComplaintWithDetails } from '@/services/complaints'
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { isModuleEnabled } from '@/config/modules';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { ComplaintStatus } from '@/types';
 
 /**
@@ -29,6 +30,7 @@ import type { ComplaintStatus } from '@/types';
  * List of neighborhood complaints, status tracking, and reporting.
  */
 export default function PengaduanScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useSupabase();
 
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
@@ -82,29 +84,50 @@ export default function PengaduanScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          {router.canGoBack() && (
-            <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-              <CaretLeft size={20} color={Colors.stone[700]} />
-              <Text style={styles.backButtonText}>Kembali</Text>
-            </TouchableOpacity>
+    <DesktopShell
+      activeKey="/pengaduan"
+      pageTitle="Pengaduan Warga"
+      breadcrumb={['Pelayanan', 'Pengaduan']}
+      headerAction={
+        <TouchableOpacity
+          style={styles.createButton}
+          onPress={() => router.push('/pengaduan/create' as any)}
+          activeOpacity={0.8}
+        >
+          <Plus size={16} color="#FFFFFF" weight="bold" />
+          <Text style={styles.createButtonText}>Buat Laporan</Text>
+        </TouchableOpacity>
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        <View style={styles.header}>
+          {!isDesktop && (
+            <View style={styles.headerTop}>
+              {router.canGoBack() && (
+                <TouchableOpacity
+                  onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+                  hitSlop={8}
+                  style={styles.backButton}
+                >
+                  <CaretLeft size={20} color={Colors.stone[700]} />
+                  <Text style={styles.backButtonText}>Kembali</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={() => router.push('/pengaduan/create' as any)}
+                activeOpacity={0.8}
+              >
+                <Plus size={16} color="#FFFFFF" weight="bold" />
+                <Text style={styles.createButtonText}>Buat Laporan</Text>
+              </TouchableOpacity>
+            </View>
           )}
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={() => router.push('/pengaduan/create' as any)}
-            activeOpacity={0.8}
-          >
-            <Plus size={16} color="#FFFFFF" weight="bold" />
-            <Text style={styles.createButtonText}>Buat Laporan</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.title}>Pengaduan Warga</Text>
-        <Text style={styles.subtitle}>
-          Saluran resmi penyampaian aspirasi dan kendala fasilitas komplek
-        </Text>
+          {!isDesktop && <Text style={styles.title}>Pengaduan Warga</Text>}
+          <Text style={styles.subtitle}>
+            Saluran resmi penyampaian aspirasi dan kendala fasilitas komplek
+          </Text>
 
         {/* Tab Filters */}
         <View style={styles.tabRow}>
@@ -201,6 +224,7 @@ export default function PengaduanScreen() {
         />
       )}
     </SafeAreaView>
+    </DesktopShell>
   );
 }
 

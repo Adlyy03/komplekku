@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -47,8 +47,10 @@ import {
   RELATIONSHIP_LABELS,
 } from '@/services/family';
 import type { FamilyMember, FamilyRelationship } from '@/types/database';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 export default function ProfileScreen() {
+  const isDesktop = useIsDesktop();
   const { user, profile, refreshProfile, updateProfile, signOut } = useSupabase();
   const { household, activeRole, setActiveRole, isDeveloper, isRw, isRt, isHeadOfFamily, refreshComplex } =
     useComplex();
@@ -121,7 +123,7 @@ export default function ProfileScreen() {
 
   const handleCopyFamilyCode = () => {
     if (!familyCode) return;
-    Alert.alert(
+    popup.info(
       'ID Unik Keluarga (7 Digit)',
       `Kode ID Keluarga Anda: ${familyCode}\n\nBagikan kode 7 digit ini kepada istri atau anak saat mendaftar akun Komplekku agar otomatis terhubung ke rumah ini.`
     );
@@ -131,7 +133,7 @@ export default function ProfileScreen() {
     if (!user?.id) return;
     const clean = joinCodeInput.trim().toUpperCase();
     if (clean.length !== 7) {
-      Alert.alert('Format Salah', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
+      popup.warning('Format Salah', 'ID Keluarga harus terdiri dari 7 karakter/digit.');
       return;
     }
 
@@ -139,9 +141,9 @@ export default function ProfileScreen() {
     try {
       const { data, error } = await joinFamilyByCode(user.id, clean);
       if (error || !data) {
-        Alert.alert('Gagal Bergabung', error?.message || 'ID Keluarga tidak ditemukan.');
+        popup.error('Gagal Bergabung', error?.message || 'ID Keluarga tidak ditemukan.');
       } else {
-        Alert.alert(
+        popup.success(
           'Berhasil Terhubung!',
           `Anda telah terhubung ke Rumah ${data.block ? `Blok ${data.block} ` : ''}No. ${data.house_number}.`
         );
@@ -233,7 +235,7 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert('Izin Dibutuhkan', 'Izin akses galeri diperlukan untuk memilih foto profil.');
+        popup.warning('Izin Dibutuhkan', 'Izin akses galeri diperlukan untuk memilih foto profil.');
         return;
       }
 
@@ -401,48 +403,43 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteMember = (member: FamilyMember) => {
-    Alert.alert(
-      'Hapus Anggota Keluarga',
-      `Hapus ${member.full_name} (${RELATIONSHIP_LABELS[member.relationship]}) dari daftar keluarga?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Hapus',
-          style: 'destructive',
-          onPress: async () => {
-            const { error } = await deleteFamilyMember(member.id);
-            if (error) {
-              Alert.alert('Gagal', error.message);
-            } else {
-              await loadFamilyData();
-              await refreshComplex();
-            }
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: 'Hapus Anggota Keluarga',
+      message: `Hapus ${member.full_name} (${RELATIONSHIP_LABELS[member.relationship]}) dari daftar keluarga?`,
+      confirmText: 'Hapus',
+      destructive: true,
+      onConfirm: async () => {
+        const { error } = await deleteFamilyMember(member.id);
+        if (error) {
+          popup.error('Gagal', error.message);
+        } else {
+          await loadFamilyData();
+          await refreshComplex();
+        }
+      },
+    });
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Keluar Akun',
-      'Apakah kamu yakin ingin keluar dari akun Komplekku?',
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Keluar',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-          },
-        },
-      ]
-    );
+    popup.confirm({
+      title: 'Keluar Akun',
+      message: 'Apakah kamu yakin ingin keluar dari akun Komplekku?',
+      confirmText: 'Keluar',
+      destructive: true,
+      onConfirm: async () => {
+        await signOut();
+      },
+    });
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <DesktopShell
+      activeKey="/profile"
+      pageTitle="Profil Pengguna"
+      breadcrumb={['Beranda', 'Profil']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top']}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
         {/* Profile Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -1282,6 +1279,7 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -1294,6 +1292,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
     paddingBottom: Spacing[10],
+  },
+  desktopScrollContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   header: {
     alignItems: 'center',

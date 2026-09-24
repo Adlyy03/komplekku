@@ -17,6 +17,7 @@ import { useSupabase } from '@/lib/supabase-provider';
 import { getSellerProfile } from '@/services/sellers';
 import { getBuyerOrders, getSellerOrders, type OrderWithDetails } from '@/services/orders';
 import { formatRupiah, formatTimeAgo } from '@/services/products';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { SellerProfile } from '@/types/database';
 import type { OrderStatus } from '@/types';
 
@@ -44,6 +45,7 @@ function getStatusBadge(status: OrderStatus) {
  * Dual mode: "Pesanan Saya (Buyer)" and "Pesanan Masuk (Seller)"
  */
 export default function OrdersScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useSupabase();
 
   const [activeTab, setActiveTab] = useState<'buyer' | 'seller'>('buyer');
@@ -125,14 +127,19 @@ export default function OrdersScreen() {
   const displayedOrders = activeTab === 'buyer' ? buyerOrders : sellerOrders;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Daftar Pesanan</Text>
+    <DesktopShell
+      activeKey="/orders"
+      pageTitle="Daftar Pesanan"
+      breadcrumb={['Pasar', 'Pesanan']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top']}>
+        {/* Header */}
+        <View style={[styles.header, isDesktop && styles.desktopHeader]}>
+          {!isDesktop && <Text style={styles.title}>Daftar Pesanan</Text>}
 
-        {/* Tab switch if user is also a seller */}
-        {seller && (
-          <View style={styles.tabBar}>
+          {/* Tab switch if user is also a seller */}
+          {seller && (
+            <View style={styles.tabBar}>
             <Pressable
               onPress={() => setActiveTab('buyer')}
               style={[
@@ -192,7 +199,7 @@ export default function OrdersScreen() {
         <FlatList
           data={displayedOrders}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isDesktop && styles.desktopListContent]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -263,6 +270,7 @@ export default function OrdersScreen() {
         />
       )}
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -276,6 +284,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing[3],
     paddingBottom: Spacing[2],
     gap: Spacing[3],
+  },
+  desktopHeader: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+    paddingTop: Spacing[4],
   },
   title: {
     ...Typography.h1,
@@ -309,6 +323,12 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Spacing[4],
     gap: Spacing[3],
+    paddingBottom: Spacing[10],
+  },
+  desktopListContent: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
     paddingBottom: Spacing[10],
   },
   orderCard: {

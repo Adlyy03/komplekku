@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Alert,
   FlatList,
   Modal,
   RefreshControl,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CaretLeft, Plus, X, Megaphone } from 'phosphor-react-native';
@@ -26,6 +26,7 @@ import {
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { AnnouncementTarget } from '@/types/database';
 
 /**
@@ -33,6 +34,7 @@ import type { AnnouncementTarget } from '@/types/database';
  * Scoped notices for Complex, RW, or RT level.
  */
 export default function AnnouncementsScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useSupabase();
   const { household, isDeveloper, isRw, isRt } = useComplex();
 
@@ -76,7 +78,7 @@ export default function AnnouncementsScreen() {
   const handleCreateAnnouncement = async () => {
     if (!user) return;
     if (!annTitle.trim() || !annBody.trim()) {
-      Alert.alert('Data Belum Lengkap', 'Judul dan isi pengumuman wajib diisi.');
+      popup.warning('Data Belum Lengkap', 'Judul dan isi pengumuman wajib diisi.');
       return;
     }
 
@@ -92,9 +94,9 @@ export default function AnnouncementsScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal Menerbitkan', error.message);
+        popup.error('Gagal Menerbitkan', error.message);
       } else {
-        Alert.alert('Sukses', 'Pengumuman berhasil diterbitkan dan notifikasi telah dikirimkan.');
+        popup.success('Sukses', 'Pengumuman berhasil diterbitkan dan notifikasi telah dikirimkan.');
         setAnnTitle('');
         setAnnBody('');
         setModalVisible(false);
@@ -110,29 +112,52 @@ export default function AnnouncementsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButtonText}>Dashboard</Text>
+    <DesktopShell
+      activeKey="/announcements"
+      pageTitle="Pengumuman Warga"
+      breadcrumb={['Komunikasi', 'Pengumuman']}
+      headerAction={
+        canCreate ? (
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => setModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Plus size={16} color="#FFFFFF" weight="bold" />
+            <Text style={styles.createButtonText}>Buat Pengumuman</Text>
           </TouchableOpacity>
+        ) : undefined
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        <View style={styles.header}>
+          {!isDesktop && (
+            <View style={styles.headerTop}>
+              <TouchableOpacity
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+                hitSlop={8}
+                style={styles.backButton}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButtonText}>Kembali</Text>
+              </TouchableOpacity>
 
-          {canCreate && (
-            <TouchableOpacity
-              style={styles.createButton}
-              onPress={() => setModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Plus size={16} color="#FFFFFF" weight="bold" />
-              <Text style={styles.createButtonText}>Buat Pengumuman</Text>
-            </TouchableOpacity>
+              {canCreate && (
+                <TouchableOpacity
+                  style={styles.createButton}
+                  onPress={() => setModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={16} color="#FFFFFF" weight="bold" />
+                  <Text style={styles.createButtonText}>Buat Pengumuman</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
+          {!isDesktop && <Text style={styles.title}>Pengumuman Warga</Text>}
+          <Text style={styles.subtitle}>Informasi resmi dari pengurus komplek, RW, dan RT</Text>
         </View>
-        <Text style={styles.title}>Pengumuman Warga</Text>
-        <Text style={styles.subtitle}>Informasi resmi dari pengurus komplek, RW, dan RT</Text>
-      </View>
 
       {loading ? (
         <LoadingState fullScreen={false} style={{ flex: 1 }} />
@@ -319,7 +344,8 @@ export default function AnnouncementsScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 

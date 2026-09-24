@@ -5,11 +5,11 @@ import {
   Text,
   View,
   TouchableOpacity,
-  Alert,
   Linking,
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
@@ -29,9 +29,11 @@ import {
   updateEmergencyStatus,
   type EmergencyWithDetails,
 } from '@/services/security';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { EmergencyType } from '@/types/database';
 
 export default function SOSScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const { household, isRw, isRt, isDeveloper } = useComplex();
   const isManager = isDeveloper || isRw || isRt;
@@ -101,9 +103,9 @@ export default function SOSScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal Mengirim SOS', error.message);
+        popup.error('Gagal Mengirim SOS', error.message);
       } else {
-        Alert.alert(
+        popup.alert(
           'SINYAL DARURAT DIAKTIFKAN!',
           'Peringatan darurat telah disiarkan ke pos keamanan dan seluruh pengurus komplek.',
           [{ text: 'OK' }]
@@ -129,13 +131,13 @@ export default function SOSScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
-        Alert.alert('Sukses', `Status darurat diperbarui menjadi ${status}.`);
+        popup.success('Sukses', `Status darurat diperbarui menjadi ${status}.`);
         await loadEmergencies();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      popup.error('Error', err.message);
     }
   };
 
@@ -144,24 +146,31 @@ export default function SOSScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
-          hitSlop={8}
-          style={styles.backButton}
-        >
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Bantuan & Keadaan Darurat</Text>
-        <Text style={styles.subtitle}>
-          Pusat panggilan darurat dan tombol panik untuk keamanan komplek.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/security/sos"
+      pageTitle="Bantuan & Keadaan Darurat (SOS)"
+      breadcrumb={['Keamanan', 'SOS Darurat']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Bantuan & Keadaan Darurat</Text>
+            <Text style={styles.subtitle}>
+              Pusat panggilan darurat dan tombol panik untuk keamanan komplek.
+            </Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]}>
         {/* Active Emergency Alert if any */}
         {activeList.length > 0 && (
           <View style={styles.activeAlertContainer}>
@@ -311,7 +320,8 @@ export default function SOSScreen() {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -550,5 +560,11 @@ const styles = StyleSheet.create({
     ...Typography.label,
     color: Colors.primary[700],
     fontWeight: '700',
+  },
+  desktopContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

@@ -6,18 +6,20 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft, CheckCircle, Lightning, Receipt, CalendarBlank } from 'phosphor-react-native';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { useComplex } from '@/lib/complex-provider';
 import { getDues, createDue, generateDueBatch, formatRupiah } from '@/services/dues';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { Due } from '@/types/database';
 
 export default function CreateBatchBillingScreen() {
+  const isDesktop = useIsDesktop();
   const { activeRole } = useComplex();
   const isManager = activeRole === 'developer' || activeRole === 'rw' || activeRole === 'rt';
 
@@ -63,18 +65,18 @@ export default function CreateBatchBillingScreen() {
 
   const handleGenerate = async () => {
     if (!isManager) {
-      Alert.alert('Akses Ditolak', 'Hanya pengurus (RT/RW/Developer) yang dapat membuat tagihan massal.');
+      popup.error('Akses Ditolak', 'Hanya pengurus (RT/RW/Developer) yang dapat membuat tagihan massal.');
       return;
     }
 
     const amount = Number(amountStr);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Validasi Gagal', 'Nominal iuran harus lebih besar dari 0.');
+      popup.warning('Validasi Gagal', 'Nominal iuran harus lebih besar dari 0.');
       return;
     }
 
     if (!periodStart || !periodEnd || !dueDate) {
-      Alert.alert('Validasi Gagal', 'Lengkapi tanggal periode dan jatuh tempo.');
+      popup.warning('Validasi Gagal', 'Lengkapi tanggal periode dan jatuh tempo.');
       return;
     }
 
@@ -87,7 +89,7 @@ export default function CreateBatchBillingScreen() {
       // If user wants to create a new due master
       if (selectedDueId === 'new') {
         if (!newDueName.trim()) {
-          Alert.alert('Validasi Gagal', 'Masukkan nama iuran baru.');
+          popup.warning('Validasi Gagal', 'Masukkan nama iuran baru.');
           setLoading(false);
           return;
         }
@@ -97,7 +99,7 @@ export default function CreateBatchBillingScreen() {
           dueType: 'monthly',
         });
         if (createErr || !created) {
-          Alert.alert('Gagal', createErr?.message || 'Gagal membuat jenis iuran.');
+          popup.error('Gagal', createErr?.message || 'Gagal membuat jenis iuran.');
           setLoading(false);
           return;
         }
@@ -113,20 +115,20 @@ export default function CreateBatchBillingScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal Generate', error.message);
+        popup.error('Gagal Generate', error.message);
       } else if (data) {
         setResult({
           generated: data.generated_count,
           skipped: data.skipped_count,
         });
-        Alert.alert(
+        popup.alert(
           'Sukses Generate Tagihan',
           `Berhasil membuat ${data.generated_count} tagihan untuk rumah berpenghuni. (${data.skipped_count} tagihan dilewati karena sudah ada).`,
           [{ text: 'Selesai', onPress: () => router.back() }]
         );
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Terjadi kesalahan sistem.');
+      popup.error('Error', err.message || 'Terjadi kesalahan sistem.');
     } finally {
       setLoading(false);
     }
@@ -134,37 +136,53 @@ export default function CreateBatchBillingScreen() {
 
   if (!isManager) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorBox}>
-          <Text style={styles.errorTitle}>Akses Terbatas</Text>
-          <Text style={styles.errorDesc}>Hanya pengurus yang berwenang membuat tagihan iuran massal.</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>Kembali</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <DesktopShell
+        activeKey="/iuran"
+        pageTitle="Generate Tagihan Iuran"
+        breadcrumb={['Iuran', 'Generate Tagihan']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Akses Terbatas</Text>
+            <Text style={styles.errorDesc}>Hanya pengurus yang berwenang membuat tagihan iuran massal.</Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/iuran' as any))}
+            >
+              <Text style={styles.backBtnText}>Kembali</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Top Bar */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={8}
-          style={styles.backButton}
-        >
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Generate Tagihan Iuran</Text>
-        <Text style={styles.subtitle}>
-          Pembuatan tagihan iuran massal bulanan untuk seluruh rumah terisi.
-        </Text>
-      </View>
+    <DesktopShell
+      activeKey="/iuran"
+      pageTitle="Generate Tagihan Iuran"
+      breadcrumb={['Iuran', 'Generate Tagihan']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Top Bar */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/iuran' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Generate Tagihan Iuran</Text>
+            <Text style={styles.subtitle}>
+              Pembuatan tagihan iuran massal bulanan untuk seluruh rumah terisi.
+            </Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]} keyboardShouldPersistTaps="handled">
         {/* Step 1: Jenis Iuran */}
         <View style={styles.card}>
           <Text style={styles.cardHeading}>PILIH JENIS IURAN</Text>
@@ -332,6 +350,7 @@ export default function CreateBatchBillingScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -373,6 +392,12 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing[4],
     gap: Spacing[4],
+  },
+  desktopContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   card: {
     backgroundColor: Colors.stone[0],

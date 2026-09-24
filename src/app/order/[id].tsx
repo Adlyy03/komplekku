@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -23,6 +23,7 @@ import { useSupabase } from '@/lib/supabase-provider';
 import { getOrderById, updateOrderStatus, type OrderWithDetails } from '@/services/orders';
 import { formatRupiah, formatTimeAgo } from '@/services/products';
 import { getOrCreateConversation } from '@/services/chat';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { OrderStatus } from '@/types';
 
 const STATUS_STEPS: { key: OrderStatus; label: string }[] = [
@@ -38,6 +39,7 @@ const STATUS_STEPS: { key: OrderStatus; label: string }[] = [
  * Order status timeline, immutable price snapshots, party details, and status transition actions.
  */
 export default function OrderDetailScreen() {
+  const isDesktop = useIsDesktop();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSupabase();
 
@@ -80,34 +82,36 @@ export default function OrderDetailScreen() {
   }, [id]);
 
   const handleUpdateStatus = (newStatus: OrderStatus, actionPrompt: string) => {
-    Alert.alert('Konfirmasi Status', actionPrompt, [
-      { text: 'Batal', style: 'cancel' },
-      {
-        text: 'Ya, Lanjutkan',
-        onPress: async () => {
-          if (!order?.id) return;
-          setUpdating(true);
-          try {
-            const res = await updateOrderStatus(order.id, newStatus);
-            if (res.error) {
-              Alert.alert('Gagal', res.error.message);
-            } else {
-              setOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
-              Alert.alert('Sukses', `Status pesanan diubah menjadi: ${newStatus}`);
-            }
-          } finally {
-            setUpdating(false);
+    const isCancel = newStatus === 'cancelled';
+    popup.confirm({
+      title: 'Konfirmasi Status',
+      message: actionPrompt,
+      confirmText: isCancel ? 'Ya, Batalkan' : 'Ya, Lanjutkan',
+      cancelText: 'Batal',
+      destructive: isCancel,
+      onConfirm: async () => {
+        if (!order?.id) return;
+        setUpdating(true);
+        try {
+          const res = await updateOrderStatus(order.id, newStatus);
+          if (res.error) {
+            popup.error('Gagal', res.error.message);
+          } else {
+            setOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+            popup.success('Sukses', `Status pesanan diubah menjadi: ${newStatus}`);
           }
-        },
+        } finally {
+          setUpdating(false);
+        }
       },
-    ]);
+    });
   };
 
   const handleChatCounterpart = async () => {
     if (!order || !user) return;
     const counterpartId = user.id === order.seller?.user_id ? order.buyer_id : order.seller?.user_id;
     if (!counterpartId) {
-      Alert.alert('Info', 'Pengguna tidak ditemukan.');
+      popup.info('Info', 'Pengguna tidak ditemukan.');
       return;
     }
     const { data: conv, error: convErr } = await getOrCreateConversation(
@@ -118,7 +122,7 @@ export default function OrderDetailScreen() {
     if (conv) {
       router.push(`/chat/${conv.id}` as any);
     } else {
-      Alert.alert('Gagal', convErr?.message || 'Tidak dapat memulai chat');
+      popup.error('Gagal', convErr?.message || 'Tidak dapat memulai chat');
     }
   };
 
@@ -128,19 +132,31 @@ export default function OrderDetailScreen() {
 
   if (error || !order) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.navBar}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButton}>Kembali</Text>
-          </Pressable>
-        </View>
-        <ErrorState
-          title="Pesanan Tidak Ditemukan"
-          description={error || 'Pesanan tidak tersedia.'}
-          onRetry={loadOrder}
-        />
-      </SafeAreaView>
+      <DesktopShell
+        activeKey="/orders"
+        pageTitle="Detail Pesanan"
+        breadcrumb={['Pasar', 'Pesanan', 'Detail']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          {!isDesktop && (
+            <View style={styles.navBar}>
+              <Pressable
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/orders' as any))}
+                hitSlop={8}
+                style={styles.backTouch}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButton}>Kembali</Text>
+              </Pressable>
+            </View>
+          )}
+          <ErrorState
+            title="Pesanan Tidak Ditemukan"
+            description={error || 'Pesanan tidak tersedia.'}
+            onRetry={loadOrder}
+          />
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
@@ -151,20 +167,31 @@ export default function OrderDetailScreen() {
   const isCancelled = order.status === 'cancelled';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Nav Header */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Kembali</Text>
-        </Pressable>
-        <Text style={styles.navTitle} numberOfLines={1}>
-          Detail Pesanan
-        </Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <DesktopShell
+      activeKey="/orders"
+      pageTitle={`Pesanan #${order.order_number}`}
+      breadcrumb={['Pasar', 'Pesanan', `#${order.order_number}`]}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Nav Header */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/orders' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle} numberOfLines={1}>
+              Detail Pesanan
+            </Text>
+            <View style={{ width: 48 }} />
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
         {/* Order Identifier Header */}
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
@@ -400,6 +427,7 @@ export default function OrderDetailScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -436,6 +464,12 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     gap: Spacing[4],
     paddingBottom: Spacing[10],
+  },
+  desktopScrollContent: {
+    maxWidth: 760,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
   headerCard: {
     backgroundColor: Colors.stone[0],

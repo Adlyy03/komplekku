@@ -16,11 +16,16 @@ import { Colors, TAB_BAR_HEIGHT } from '@/constants/theme';
 import { getUnreadMessagesCount } from '@/services/chat';
 import { isModuleEnabled } from '@/config/modules';
 
+import { useWindowDimensions } from 'react-native';
+import { TABLET_BREAKPOINT } from '@/components/ui/DesktopShell';
+
 /**
  * Role-Based Main app tab layout — UPGRADE_ROADMAP_V3 Phase 3 & desain.md §11
  * Dynamic tabs tailored strictly to user role (warga, rt, rw, developer)
  */
 export default function MainLayout() {
+  const { width } = useWindowDimensions();
+  const isDesktopOrTablet = width >= TABLET_BREAKPOINT;
   const { session, user, loading, initialized } = useSupabase();
   const { isDeveloper, isRw, isRt } = useComplex();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -71,14 +76,17 @@ export default function MainLayout() {
         headerShown: false,
         tabBarActiveTintColor: Colors.primary[600],
         tabBarInactiveTintColor: Colors.stone[400],
-        tabBarStyle: {
-          backgroundColor: Colors.stone[0],
-          borderTopWidth: 1,
-          borderTopColor: Colors.stone[100],
-          height: TAB_BAR_HEIGHT + 8,
-          paddingTop: 6,
-          paddingBottom: 8,
-        },
+        tabBarStyle:
+          isDesktopOrTablet
+            ? { display: 'none' }
+            : {
+                backgroundColor: Colors.stone[0],
+                borderTopWidth: 1,
+                borderTopColor: Colors.stone[100],
+                height: TAB_BAR_HEIGHT + 8,
+                paddingTop: 6,
+                paddingBottom: 8,
+              },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
@@ -114,13 +122,13 @@ export default function MainLayout() {
         }}
       />
 
-      {/* 2. Warga & Rumah (RT & RW Tab) */}
+      {/* 2. Warga & Rumah (RT, RW, Developer Tab) */}
       <Tabs.Screen
         name="warga"
         options={{
-          href: (isRw || isRt) && isModuleEnabled('residents') ? '/(main)/warga' : null,
-          title: isRw ? 'Warga RW' : 'Warga RT',
-          tabBarLabel: isRw ? 'Warga RW' : 'Warga RT',
+          href: (isRw || isRt || isDeveloper) && isModuleEnabled('residents') ? '/(main)/warga' : null,
+          title: isDeveloper ? 'Data Warga' : isRw ? 'Warga RW' : 'Warga RT',
+          tabBarLabel: isDeveloper ? 'Data Warga' : isRw ? 'Warga RW' : 'Warga RT',
           tabBarIcon: ({ color, focused }) => (
             <Users
               size={24}

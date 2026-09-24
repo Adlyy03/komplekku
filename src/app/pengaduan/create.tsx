@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { CaretLeft } from 'phosphor-react-native';
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/Input';
 import { useSupabase } from '@/lib/supabase-provider';
 import { useComplex } from '@/lib/complex-provider';
 import { createComplaint, getComplaintCategories } from '@/services/complaints';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import type { ComplaintCategory, ComplaintPriority } from '@/types';
 
 /**
@@ -23,6 +24,7 @@ import type { ComplaintCategory, ComplaintPriority } from '@/types';
  * Form for residents to report neighborhood issues.
  */
 export default function CreateComplaintScreen() {
+  const isDesktop = useIsDesktop();
   const { user } = useSupabase();
   const { household } = useComplex();
 
@@ -45,22 +47,22 @@ export default function CreateComplaintScreen() {
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Error', 'User tidak terautentikasi.');
+      popup.error('Error', 'User tidak terautentikasi.');
       return;
     }
 
     if (!title.trim()) {
-      Alert.alert('Judul Wajib', 'Mohon masukkan judul pengaduan.');
+      popup.warning('Judul Wajib', 'Mohon masukkan judul pengaduan.');
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Deskripsi Wajib', 'Mohon jelaskan kendala atau aspirasi Anda.');
+      popup.warning('Deskripsi Wajib', 'Mohon jelaskan kendala atau aspirasi Anda.');
       return;
     }
 
     if (!selectedCategoryId) {
-      Alert.alert('Kategori Wajib', 'Mohon pilih kategori pengaduan.');
+      popup.warning('Kategori Wajib', 'Mohon pilih kategori pengaduan.');
       return;
     }
 
@@ -77,9 +79,9 @@ export default function CreateComplaintScreen() {
       });
 
       if (error) {
-        Alert.alert('Gagal', error.message);
+        popup.error('Gagal', error.message);
       } else {
-        Alert.alert(
+        popup.alert(
           'Laporan Diterima',
           'Pengaduan Anda telah dikirim dan akan segera ditinjau oleh pengurus komplek.',
           [
@@ -96,17 +98,28 @@ export default function CreateComplaintScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButtonText}>Batal</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Buat Pengaduan Warga</Text>
-      </View>
+    <DesktopShell
+      activeKey="/pengaduan"
+      pageTitle="Buat Pengaduan Warga"
+      breadcrumb={['Pelayanan', 'Pengaduan', 'Buat Laporan']}
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Header */}
+        {!isDesktop && (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/pengaduan' as any))}
+              hitSlop={8}
+              style={styles.backButton}
+            >
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButtonText}>Kembali</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Buat Pengaduan Warga</Text>
+          </View>
+        )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
         {/* Category Selector */}
         <Text style={styles.sectionHeading}>PILIH KATEGORI</Text>
         <View style={styles.categoryWrap}>
@@ -194,7 +207,8 @@ export default function CreateComplaintScreen() {
           style={styles.submitBtn}
         />
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -293,5 +307,11 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: Spacing[6],
+  },
+  desktopScrollContent: {
+    maxWidth: 720,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
   },
 });

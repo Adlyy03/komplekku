@@ -272,6 +272,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.stone[100],
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   errorBox: {
     backgroundColor: Colors.semantic.error[50],

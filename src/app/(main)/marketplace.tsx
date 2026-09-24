@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { ShoppingCart, MapPin } from 'phosphor-react-native';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { Input } from '@/components/ui/Input';
 import { CategoryPills } from '@/components/ui/CategoryPills';
 import { ProductCard } from '@/components/ui/ProductCard';
@@ -20,6 +20,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useComplex } from '@/lib/complex-provider';
 import { useCart } from '@/lib/cart-provider';
 import { isModuleEnabled } from '@/config/modules';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 import {
   getCategories,
   getProducts,
@@ -34,6 +35,8 @@ const PAGE_SIZE = 20;
  * 2-column responsive product grid scoped strictly to the active community.
  */
 export default function MarketplaceScreen() {
+  const isDesktop = useIsDesktop();
+  const numColumns = isDesktop ? 3 : 2;
   const { complexSettings } = useComplex();
   const { totalItemCount } = useCart();
 
@@ -129,46 +132,61 @@ export default function MarketplaceScreen() {
     return <Redirect href="/(main)" />;
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header Bar */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <View>
-            <Text style={styles.title}>Marketplace</Text>
-            {complexSettings?.name && (
-              <View style={styles.communityTag}>
-                <MapPin size={11} color={Colors.stone[600]} />
-                <Text style={styles.communityTagText} numberOfLines={1}>
-                  {complexSettings.name}
-                </Text>
-              </View>
-            )}
+  const mainView = (
+    <View style={styles.container}>
+      {/* Header Bar (Mobile only) */}
+      {!isDesktop && (
+        <View style={styles.header}>
+          <View style={styles.headerTitleRow}>
+            <View>
+              <Text style={styles.title}>Marketplace</Text>
+              {complexSettings?.name && (
+                <View style={styles.communityTag}>
+                  <MapPin size={11} color={Colors.stone[600]} />
+                  <Text style={styles.communityTagText} numberOfLines={1}>
+                    {complexSettings.name}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Pressable
+              onPress={() => router.push('/cart' as any)}
+              hitSlop={8}
+              style={styles.cartIconTouch}
+              accessibilityLabel="Keranjang Belanja"
+            >
+              <ShoppingCart size={24} color={Colors.stone[700]} />
+              {totalItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{totalItemCount}</Text>
+                </View>
+              )}
+            </Pressable>
           </View>
 
-          <Pressable
-            onPress={() => router.push('/cart' as any)}
-            hitSlop={8}
-            style={styles.cartIconTouch}
-            accessibilityLabel="Keranjang Belanja"
-          >
-            <ShoppingCart size={24} color={Colors.stone[700]} />
-            {totalItemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{totalItemCount}</Text>
-              </View>
-            )}
-          </Pressable>
+          {/* Search Input */}
+          <Input
+            placeholder="Cari makanan, jasa, barang..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            containerStyle={styles.searchContainer}
+          />
         </View>
+      )}
 
-        {/* Search Input */}
-        <Input
-          placeholder="Cari makanan, jasa, barang..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          containerStyle={styles.searchContainer}
-        />
-      </View>
+      {/* Desktop Search Filter Bar */}
+      {isDesktop && (
+        <View style={styles.desktopSearchRow}>
+          <View style={{ flex: 1 }}>
+            <Input
+              placeholder="Cari makanan, jasa, atau produk UMKM warga komplek..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </View>
+      )}
 
       {/* Category Horizontal Pills */}
       <View style={styles.pillsWrapper}>
@@ -203,9 +221,10 @@ export default function MarketplaceScreen() {
         />
       ) : (
         <FlatList
+          key={isDesktop ? 'grid-3' : 'grid-2'}
           data={products}
           keyExtractor={(item) => item.id}
-          numColumns={2}
+          numColumns={numColumns}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -225,7 +244,28 @@ export default function MarketplaceScreen() {
           )}
         />
       )}
-    </SafeAreaView>
+    </View>
+  );
+
+  return (
+    <DesktopShell
+      activeKey="/marketplace"
+      pageTitle="Pasar Komplek"
+      breadcrumb={['Komplek', 'Marketplace']}
+      headerAction={
+        <Pressable
+          onPress={() => router.push('/cart' as any)}
+          style={styles.desktopCartBtn}
+        >
+          <ShoppingCart size={18} color={Colors.stone[700]} />
+          <Text style={styles.desktopCartText}>Keranjang ({totalItemCount})</Text>
+        </Pressable>
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top']}>
+        {mainView}
+      </SafeAreaView>
+    </DesktopShell>
   );
 }
 
@@ -304,5 +344,24 @@ const styles = StyleSheet.create({
   columnWrapper: {
     gap: Spacing[3],
     marginBottom: Spacing[3],
+  },
+  desktopSearchRow: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[2],
+  },
+  desktopCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.stone[100],
+  },
+  desktopCartText: {
+    ...Typography.bodyS,
+    fontWeight: '600',
+    color: Colors.stone[800],
   },
 });

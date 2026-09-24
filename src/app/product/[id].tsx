@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   Dimensions,
   Pressable,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { popup } from '@/lib/popup';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -20,6 +20,7 @@ import { formatRupiah, formatTimeAgo, getProductById, type ProductWithDetails } 
 import { useCart } from '@/lib/cart-provider';
 import { useSupabase } from '@/lib/supabase-provider';
 import { getOrCreateConversation } from '@/services/chat';
+import { DesktopShell, useIsDesktop } from '@/components/ui/DesktopShell';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
  * Full product view with photo gallery, seller trust card, and neighbor-to-neighbor CTA bar.
  */
 export default function ProductDetailScreen() {
+  const isDesktop = useIsDesktop();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addItem, totalItemCount } = useCart();
   const { user } = useSupabase();
@@ -71,19 +73,31 @@ export default function ProductDetailScreen() {
 
   if (error || !product) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.navBar}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-            <CaretLeft size={20} color={Colors.stone[700]} />
-            <Text style={styles.backButton}>Kembali</Text>
-          </Pressable>
-        </View>
-        <ErrorState
-          title="Produk Tidak Ditemukan"
-          description={error || 'Produk mungkin sudah dihapus atau tidak tersedia.'}
-          onRetry={() => router.back()}
-        />
-      </SafeAreaView>
+      <DesktopShell
+        activeKey="/marketplace"
+        pageTitle="Detail Produk"
+        breadcrumb={['Pasar', 'Produk']}
+      >
+        <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+          {!isDesktop && (
+            <View style={styles.navBar}>
+              <Pressable
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+                hitSlop={8}
+                style={styles.backTouch}
+              >
+                <CaretLeft size={20} color={Colors.stone[700]} />
+                <Text style={styles.backButton}>Kembali</Text>
+              </Pressable>
+            </View>
+          )}
+          <ErrorState
+            title="Produk Tidak Ditemukan"
+            description={error || 'Produk mungkin sudah dihapus atau tidak tersedia.'}
+            onRetry={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+          />
+        </SafeAreaView>
+      </DesktopShell>
     );
   }
 
@@ -95,9 +109,9 @@ export default function ProductDetailScreen() {
     try {
       const res = await addItem(product.id, 1);
       if (res.error) {
-        Alert.alert('Gagal Menambah ke Keranjang', res.error.message);
+        popup.error('Gagal Menambah ke Keranjang', res.error.message);
       } else {
-        Alert.alert('Berhasil', `"${product.name}" berhasil dimasukkan ke keranjang belanja.`);
+        popup.success('Berhasil', `"${product.name}" berhasil dimasukkan ke keranjang belanja.`);
       }
     } finally {
       setAddingCart(false);
@@ -111,11 +125,11 @@ export default function ProductDetailScreen() {
       return;
     }
     if (user.id === product.seller?.user_id) {
-      Alert.alert('Info', 'Ini adalah produk toko Anda sendiri.');
+      popup.info('Info', 'Ini adalah produk toko Anda sendiri.');
       return;
     }
     if (!product.seller?.user_id) {
-      Alert.alert('Info', 'Penjual tidak ditemukan.');
+      popup.info('Info', 'Penjual tidak ditemukan.');
       return;
     }
     const { data: conv, error: convErr } = await getOrCreateConversation(
@@ -129,21 +143,16 @@ export default function ProductDetailScreen() {
         params: { productId: product.id },
       });
     } else {
-      Alert.alert('Gagal', convErr?.message || 'Tidak dapat memulai chat');
+      popup.error('Gagal', convErr?.message || 'Tidak dapat memulai chat');
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Sticky Top Nav Bar */}
-      <View style={styles.navBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backTouch}>
-          <CaretLeft size={20} color={Colors.stone[700]} />
-          <Text style={styles.backButton}>Kembali</Text>
-        </Pressable>
-        <Text style={styles.navTitle} numberOfLines={1}>
-          {product.name}
-        </Text>
+    <DesktopShell
+      activeKey="/marketplace"
+      pageTitle={product.name}
+      breadcrumb={['Pasar', 'Produk', product.name]}
+      headerAction={
         <Pressable
           onPress={() => router.push('/cart' as any)}
           hitSlop={8}
@@ -157,31 +166,63 @@ export default function ProductDetailScreen() {
             </View>
           )}
         </Pressable>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Photo Gallery */}
-        <View style={styles.galleryContainer}>
-          {images.length > 0 ? (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => {
-                const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                setActiveImageIndex(index);
-              }}
+      }
+    >
+      <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top', 'bottom']}>
+        {/* Sticky Top Nav Bar */}
+        {!isDesktop && (
+          <View style={styles.navBar}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(main)/marketplace' as any))}
+              hitSlop={8}
+              style={styles.backTouch}
             >
-              {images.map((img) => (
-                <Image
-                  key={img.id}
-                  source={{ uri: img.storage_path }}
-                  style={styles.galleryImage}
-                  contentFit="cover"
-                />
-              ))}
-            </ScrollView>
-          ) : (
+              <CaretLeft size={20} color={Colors.stone[700]} />
+              <Text style={styles.backButton}>Kembali</Text>
+            </Pressable>
+            <Text style={styles.navTitle} numberOfLines={1}>
+              {product.name}
+            </Text>
+            <Pressable
+              onPress={() => router.push('/cart' as any)}
+              hitSlop={8}
+              style={styles.cartIconTouch}
+              accessibilityLabel="Keranjang"
+            >
+              <ShoppingCart size={22} color={Colors.stone[700]} />
+              {totalItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{totalItemCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        )}
+
+        <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}>
+          {/* Photo Gallery */}
+          <View style={[styles.galleryContainer, isDesktop && styles.desktopGalleryContainer]}>
+            {images.length > 0 ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                  const pageWidth = isDesktop ? 680 : SCREEN_WIDTH;
+                  const index = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+                  setActiveImageIndex(index);
+                }}
+              >
+                {images.map((img) => (
+                  <Image
+                    key={img.id}
+                    source={{ uri: img.storage_path }}
+                    style={[styles.galleryImage, isDesktop && styles.desktopGalleryImage]}
+                    contentFit="cover"
+                  />
+                ))}
+              </ScrollView>
+            ) : (
             <View style={styles.galleryPlaceholder}>
               <ShoppingBagOpen size={48} color={Colors.stone[400]} />
             </View>
@@ -287,9 +328,9 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* Sticky Bottom CTA Bar per desain.md §14 */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, isDesktop && styles.desktopBottomBar]}>
         <Button
-          label="+ Keranjang"
+          label={isOutOfStock ? 'Habis' : '+ Keranjang'}
           onPress={handleAddToCart}
           variant="secondary"
           disabled={isOutOfStock}
@@ -305,6 +346,7 @@ export default function ProductDetailScreen() {
         />
       </View>
     </SafeAreaView>
+  </DesktopShell>
   );
 }
 
@@ -363,15 +405,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: Spacing[12],
   },
+  desktopScrollContent: {
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+    paddingVertical: Spacing[6],
+  },
   galleryContainer: {
     width: SCREEN_WIDTH,
     height: SCREEN_WIDTH * 0.85,
     backgroundColor: Colors.stone[50],
     position: 'relative',
   },
+  desktopGalleryContainer: {
+    width: '100%',
+    height: 380,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
   galleryImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_WIDTH * 0.85,
+  },
+  desktopGalleryImage: {
+    width: 680,
+    height: 380,
+  },
+  desktopBottomBar: {
+    maxWidth: 680,
+    width: '100%',
+    alignSelf: 'center',
+    borderRadius: Radius.md,
+    marginBottom: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.stone[200],
   },
   galleryPlaceholder: {
     flex: 1,
